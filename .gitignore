@@ -1,0 +1,41 @@
+# Build directories
+build/
+.deps_cache/
+.deps_cache_backup/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Database files (if any)
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+
+# Uploads (user content)
+uploads/*
+!uploads/.gitkeep
+
+# Books directory (user content)
+books/*
+!books/.gitkeep
+
+# Compiled binaries
+mylibrary_server
+*.exe
+
+# Dependencies backup
+.deps_cache_backup/
