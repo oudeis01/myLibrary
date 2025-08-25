@@ -39,3 +39,10 @@ mylibrary_server
 
 # Dependencies backup
 .deps_cache_backup/
+
+
+**node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+yarn-debug.log.*    
