@@ -68,14 +68,27 @@ function getAuthHeaders(): HeadersInit {
 }
 
 /**
- * Handle API response
+ * Handle HTTP response and extract data
  */
 async function handleResponse<T>(response: Response): Promise<T> {
+  console.log('📡 Response status:', response.status, response.statusText);
+  
   if (!response.ok) {
     const errorText = await response.text();
+    console.log('❌ Error response:', errorText);
     throw new Error(errorText || `HTTP ${response.status}`);
   }
-  return response.json();
+  
+  const jsonResponse = await response.json();
+  console.log('📡 Full response:', jsonResponse);
+  
+  // C++ 서버는 { success: true, data: {...} } 형식으로 응답
+  if (jsonResponse.success && jsonResponse.data) {
+    return jsonResponse.data;
+  }
+  
+  // 만약 직접 데이터라면 그대로 반환
+  return jsonResponse;
 }
 
 /**

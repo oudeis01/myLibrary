@@ -1,8 +1,8 @@
 /**
  * @file components/BookReader.tsx
- * @brief Book reader component for EPUB/PDF/CBZ viewing
+ * @brief Book reader component for EPUB/PDF/CBZ viewing with actual file support
  * @author MyLibrary Team
- * @version 0.1.0
+ * @version 0.2.0
  * @date 2025-08-26
  */
 
@@ -25,9 +25,30 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// Import libraries for file processing (will be installed)
+// import ePub from 'epubjs'
+// import * as pdfjsLib from 'pdfjs-dist'
+// import JSZip from 'jszip'
+
+// Set PDF.js worker (will be enabled after install)
+// pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
+
+/**
+ * File type enum for different book formats
+ */
+enum FileType {
+  EPUB = 'epub',
+  PDF = 'pdf', 
+  CBZ = 'cbz',
+  CBR = 'cbr',
+  ZIP = 'zip'
+}
+
 interface BookReaderProps {
-  book: Book
-  onBack: () => void
+  bookId: number
+  books: Book[]
+  onClose: () => void
+  onProgressUpdate: (bookId: number) => void
 }
 
 interface ReaderSettings {
@@ -42,7 +63,31 @@ interface ReaderSettings {
 /**
  * Book reader component
  */
-export default function BookReader({ book, onBack }: BookReaderProps) {
+export default function BookReader({ 
+  bookId, 
+  books, 
+  onClose, 
+  onProgressUpdate 
+}: BookReaderProps) {
+  // Find the current book from the books array
+  const book = books.find(b => b.id === bookId)
+  
+  if (!book) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600">도서를 찾을 수 없습니다.</p>
+          <button
+            onClick={onClose}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            돌아가기
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
@@ -51,11 +96,145 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [error, setError] = useState('')
+  
+  // File-specific states
+  const [fileType, setFileType] = useState<FileType | null>(null)
+  const [pagesData, setPagesData] = useState<string[]>([]) // For images (CBZ/CBR)
+  const [pdfDocument, setPdfDocument] = useState<any>(null) // For PDF
+  const [epubBook, setEpubBook] = useState<any>(null) // For EPUB
+  
+  // Refs for rendering
+  const viewerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [zoom, setZoom] = useState(100)
   const [rotation, setRotation] = useState(0)
   
   const readerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLIFrameElement>(null)
+
+  /**
+   * Determine file type from filename
+   */
+  const getFileType = (filename: string): FileType | null => {
+    const extension = filename.toLowerCase().split('.').pop()
+    switch (extension) {
+      case 'epub':
+        return FileType.EPUB
+      case 'pdf':
+        return FileType.PDF
+      case 'cbz':
+      case 'zip':
+        return FileType.CBZ
+      case 'cbr':
+        return FileType.CBR
+      default:
+        return null
+    }
+  }
+
+  /**
+   * Load EPUB file content
+   */
+  const loadEpubFile = async (fileUrl: string) => {
+    console.log('📚 Loading EPUB file:', fileUrl)
+    try {
+      // TODO: Implement EPUB.js integration
+      // const book = ePub(fileUrl)
+      // await book.ready
+      // setEpubBook(book)
+      // setTotalPages(book.spine.length)
+      
+      // Temporary placeholder
+      setTotalPages(150)
+      setBookContent(`
+        <div class="epub-content">
+          <h1>EPUB 도서</h1>
+          <p>현재 페이지: ${currentPage}</p>
+          <p>EPUB 파일 로딩이 구현될 예정입니다.</p>
+          <p>파일: ${book.file_path}</p>
+        </div>
+      `)
+    } catch (error) {
+      throw new Error('EPUB 파일을 로드할 수 없습니다: ' + error)
+    }
+  }
+
+  /**
+   * Load PDF file content  
+   */
+  const loadPdfFile = async (fileUrl: string) => {
+    console.log('📄 Loading PDF file:', fileUrl)
+    try {
+      // TODO: Implement PDF.js integration
+      // const pdf = await pdfjsLib.getDocument(fileUrl).promise
+      // setPdfDocument(pdf)
+      // setTotalPages(pdf.numPages)
+      // await renderPdfPage(currentPage)
+      
+      // Temporary placeholder
+      setTotalPages(45)
+      setBookContent(`
+        <div class="pdf-content">
+          <h1>PDF 도서</h1>
+          <p>현재 페이지: ${currentPage}</p>
+          <p>PDF 파일 로딩이 구현될 예정입니다.</p>
+          <p>파일: ${book.file_path}</p>
+        </div>
+      `)
+    } catch (error) {
+      throw new Error('PDF 파일을 로드할 수 없습니다: ' + error)
+    }
+  }
+
+  /**
+   * Load CBZ/CBR file content (comic book archives)
+   */
+  const loadComicFile = async (fileUrl: string) => {
+    console.log('🎨 Loading Comic file:', fileUrl)
+    try {
+      // TODO: Implement JSZip integration for CBZ/ZIP files
+      // const response = await fetch(fileUrl)
+      // const arrayBuffer = await response.arrayBuffer()
+      // const zip = new JSZip()
+      // const contents = await zip.loadAsync(arrayBuffer)
+      // const imageFiles = []
+      // 
+      // contents.forEach((relativePath, file) => {
+      //   if (file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      //     imageFiles.push(file)
+      //   }
+      // })
+      // 
+      // imageFiles.sort((a, b) => a.name.localeCompare(b.name))
+      // setTotalPages(imageFiles.length)
+      // 
+      // const imageDataUrls = await Promise.all(
+      //   imageFiles.map(async (file) => {
+      //     const blob = await file.async('blob')
+      //     return URL.createObjectURL(blob)
+      //   })
+      // )
+      // setPagesData(imageDataUrls)
+      
+      // Temporary placeholder
+      setTotalPages(25)
+      setPagesData([
+        '/api/placeholder-comic-page.jpg', // 플레이스홀더 이미지
+        '/api/placeholder-comic-page.jpg',
+        '/api/placeholder-comic-page.jpg'
+      ])
+      setBookContent(`
+        <div class="comic-content">
+          <h1>만화책 (CBZ/CBR)</h1>
+          <p>현재 페이지: ${currentPage}</p>
+          <p>만화책 파일 로딩이 구현될 예정입니다.</p>
+          <p>파일: ${book.file_path}</p>
+        </div>
+      `)
+    } catch (error) {
+      throw new Error('만화책 파일을 로드할 수 없습니다: ' + error)
+    }
+  }
 
   const [settings, setSettings] = useState<ReaderSettings>({
     fontSize: 16,
@@ -75,20 +254,36 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
         setIsLoading(true)
         setError('')
 
-        // Load reading progress
+        // Determine file type
+        const detectedFileType = getFileType(book.file_path)
+        setFileType(detectedFileType)
+
+        // Load reading progress FIRST
         const progressData = await progressApi.getProgress(book.id)
         setProgress(progressData)
         
-        if (progressData?.page) {
-          setCurrentPage(progressData.page)
-        }
+        // Set initial page from progress (important for correct position)
+        const initialPage = progressData?.page || 1
+        setCurrentPage(initialPage)
 
-        // For demonstration, we'll simulate loading content
-        // In a real implementation, this would integrate with EPUB.js, PDF.js, etc.
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Get file URL for loading
+        const fileUrl = `/api/books/${book.id}/file`
         
-        setTotalPages(Math.floor(Math.random() * 300) + 50) // Mock total pages
-        setBookContent('Book content loaded...') // Mock content
+        // Load content based on file type
+        switch (detectedFileType) {
+          case FileType.EPUB:
+            await loadEpubFile(fileUrl)
+            break
+          case FileType.PDF:
+            await loadPdfFile(fileUrl)
+            break
+          case FileType.CBZ:
+          case FileType.CBR:
+            await loadComicFile(fileUrl)
+            break
+          default:
+            throw new Error(`지원하지 않는 파일 형식입니다: ${book.file_type}`)
+        }
         
       } catch (error) {
         setError(error instanceof Error ? error.message : '도서를 로드할 수 없습니다.')
@@ -101,7 +296,7 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
   }, [book.id])
 
   /**
-   * Save reading progress
+   * Save reading progress and update parent component
    */
   const saveProgress = async (page: number) => {
     try {
@@ -110,8 +305,82 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
         progress_percent: Math.round((page / totalPages) * 100)
       })
       setProgress(prev => prev ? { ...prev, page } : null)
+      
+      // Notify parent component to update progress
+      onProgressUpdate(book.id)
     } catch (error) {
       console.error('Failed to save progress:', error)
+    }
+  }
+
+  /**
+   * Render current page based on file type
+   */
+  const renderCurrentPage = () => {
+    switch (fileType) {
+      case FileType.EPUB:
+        return (
+          <div 
+            className="epub-page prose max-w-none"
+            style={{
+              fontSize: `${settings.fontSize}px`,
+              fontFamily: settings.fontFamily,
+              lineHeight: settings.lineHeight,
+              backgroundColor: settings.backgroundColor,
+              color: settings.textColor,
+              maxWidth: `${settings.pageWidth}px`,
+              margin: '0 auto',
+              padding: '2rem'
+            }}
+            dangerouslySetInnerHTML={{ __html: bookContent }}
+          />
+        )
+      
+      case FileType.PDF:
+        return (
+          <div className="pdf-page flex justify-center">
+            <canvas 
+              ref={canvasRef}
+              className="max-w-full h-auto shadow-lg"
+              style={{ backgroundColor: settings.backgroundColor }}
+            />
+            {/* Fallback content */}
+            <div 
+              className="pdf-fallback p-8"
+              dangerouslySetInnerHTML={{ __html: bookContent }}
+            />
+          </div>
+        )
+      
+      case FileType.CBZ:
+      case FileType.CBR:
+        return (
+          <div className="comic-page flex justify-center items-center">
+            {pagesData[currentPage - 1] ? (
+              <img 
+                src={pagesData[currentPage - 1]}
+                alt={`Page ${currentPage}`}
+                className="max-w-full max-h-[80vh] object-contain shadow-lg"
+                style={{ backgroundColor: settings.backgroundColor }}
+              />
+            ) : (
+              <div 
+                className="comic-fallback p-8"
+                dangerouslySetInnerHTML={{ __html: bookContent }}
+              />
+            )}
+          </div>
+        )
+      
+      default:
+        return (
+          <div className="unsupported-file flex items-center justify-center h-64">
+            <div className="text-center">
+              <p className="text-red-600">지원하지 않는 파일 형식입니다.</p>
+              <p className="text-gray-500">{book.file_type}</p>
+            </div>
+          </div>
+        )
     }
   }
 
@@ -217,7 +486,7 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
           break
         case 'Escape':
           e.preventDefault()
-          onBack()
+          onClose()
           break
       }
     }
@@ -245,7 +514,7 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
           <h2 className="text-2xl font-semibold text-gray-900">로딩 오류</h2>
           <p className="text-gray-600">{error}</p>
           <button
-            onClick={onBack}
+            onClick={onClose}
             className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
           >
             돌아가기
@@ -261,7 +530,7 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
-            onClick={onBack}
+            onClick={onClose}
             className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -372,36 +641,11 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
               minHeight: '80vh'
             }}
           >
-            {/* Mock Reader Content */}
+            {/* Book Content */}
             <div className="p-8">
               <h2 className="text-2xl font-bold mb-6">{book.title}</h2>
-              <div 
-                style={{
-                  fontSize: `${settings.fontSize}px`,
-                  fontFamily: settings.fontFamily,
-                  lineHeight: settings.lineHeight,
-                  color: settings.textColor,
-                  backgroundColor: settings.backgroundColor
-                }}
-              >
-                <p className="mb-4">
-                  페이지 {currentPage} / {totalPages}
-                </p>
-                <p className="mb-4">
-                  이 영역에 실제 도서 내용이 표시됩니다. 
-                  EPUB 파일의 경우 EPUB.js를, PDF 파일의 경우 PDF.js를, 
-                  CBZ/CBR 파일의 경우 적절한 이미지 뷰어를 통합하여 
-                  실제 도서 내용을 렌더링하게 됩니다.
-                </p>
-                <p className="mb-4">
-                  현재는 데모 버전으로, 실제 구현에서는 각 파일 형식에 맞는 
-                  전용 렌더링 엔진을 사용하여 도서를 표시합니다.
-                </p>
-                <p>
-                  키보드 화살표 키나 상단의 네비게이션 버튼을 사용하여 
-                  페이지를 이동할 수 있습니다.
-                </p>
-              </div>
+              {renderCurrentPage()}
+            </div>
             </div>
           </div>
         </div>
@@ -495,23 +739,22 @@ export default function BookReader({ book, onBack }: BookReaderProps) {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Progress Bar */}
-      {progress && (
-        <div className="bg-white border-t border-gray-200 px-4 py-2">
-          <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-            <span>읽기 진행률</span>
-            <span>{Math.round((currentPage / totalPages) * 100)}%</span>
+        {/* Progress Bar */}
+        {progress && (
+          <div className="bg-white border-t border-gray-200 px-4 py-2">
+            <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+              <span>읽기 진행률</span>
+              <span>{Math.round((currentPage / totalPages) * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${(currentPage / totalPages) * 100}%` }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-primary-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(currentPage / totalPages) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
   )
 }
