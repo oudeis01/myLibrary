@@ -7,6 +7,7 @@
  */
 
 #include "database.h"
+#include "auth.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -82,6 +83,8 @@ void Database::prepare_statements() {
             "INSERT INTO users (username, password_hash) VALUES ($1, $2)");
         conn->prepare("select_user_by_credentials", 
             "SELECT id FROM users WHERE username = $1 AND password_hash = $2");
+        conn->prepare("get_user_password_hash", 
+            "SELECT password_hash FROM users WHERE username = $1");
         conn->prepare("get_user_id", 
             "SELECT id FROM users WHERE username = $1");
 
@@ -132,11 +135,18 @@ void Database::create_user(const std::string& username, const std::string& passw
     }
 }
 
-bool Database::authenticate_user(const std::string& username, const std::string& password_hash) {
+bool Database::authenticate_user(const std::string& username, const std::string& password) {
     try {
         pqxx::nontransaction txn(*conn);
-        pqxx::result result = txn.exec_prepared("select_user_by_credentials", username, password_hash);
-        return !result.empty();
+        // Get the stored password hash for the user
+        pqxx::result result = txn.exec_prepared("get_user_password_hash", username);
+        if (result.empty()) {
+            return false; // User not found
+        }
+        
+        std::string stored_hash = result[0][0].as<std::string>();
+        // Use Auth::verify_password to check if the plain password matches the stored hash
+        return Auth::verify_password(password, stored_hash);
     } catch (const std::exception& e) {
         std::cerr << "Authentication error: " << e.what() << std::endl;
         return false;

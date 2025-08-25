@@ -551,25 +551,60 @@ async function loadBooks() {
  * @param {Array} books - Array of book objects
  */
 function displayBooks(books) {
-    const gridElement = document.getElementById('booksGrid');
+    currentBooks = books;
+    const booksGrid = document.getElementById('booksGrid');
     
     if (books.length === 0) {
-        gridElement.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">아직 업로드된 도서가 없습니다.</p>';
+        booksGrid.innerHTML = '<div style="text-align: center; color: #666; padding: 50px;">아직 업로드된 책이 없습니다.<br>상단의 "도서 업로드" 탭에서 첫 번째 책을 추가해보세요!</div>';
         return;
     }
     
-    gridElement.innerHTML = books.map(book => {
-        const progress = book.progress || {};
-        const progressPercent = progress.progress_percent || 0;
-        const lastPage = progress.page || 0;
-        const totalPages = progress.total_pages || 'unknown';
+    booksGrid.innerHTML = books.map(book => {
+        const progressPercent = book.progress?.progress_percent || 0;
+        const lastPage = book.progress?.page || 0;
+        const totalPages = book.progress?.total_pages || 0;
+        
+        // Generate book thumbnail based on file type
+        let thumbnailHtml = '';
+        const fileType = book.file_type || 'unknown';
+        
+        if (fileType === 'epub') {
+            thumbnailHtml = `
+                <div class="book-thumbnail epub-thumbnail">
+                    <div class="book-icon">📚</div>
+                    <div class="book-format">EPUB</div>
+                </div>
+            `;
+        } else if (fileType === 'pdf') {
+            thumbnailHtml = `
+                <div class="book-thumbnail pdf-thumbnail">
+                    <div class="book-icon">📄</div>
+                    <div class="book-format">PDF</div>
+                </div>
+            `;
+        } else if (fileType === 'cbz' || fileType === 'cbr') {
+            thumbnailHtml = `
+                <div class="book-thumbnail comic-thumbnail">
+                    <div class="book-icon">🎭</div>
+                    <div class="book-format">${fileType.toUpperCase()}</div>
+                </div>
+            `;
+        } else {
+            thumbnailHtml = `
+                <div class="book-thumbnail unknown-thumbnail">
+                    <div class="book-icon">📖</div>
+                    <div class="book-format">${fileType.toUpperCase()}</div>
+                </div>
+            `;
+        }
         
         return `
             <div class="book-card">
-                <div class="book-title">${escapeHtml(book.title)}</div>
-                <div class="book-author">${escapeHtml(book.author || '저자 미상')}</div>
-                <div class="book-meta">
-                    ${book.file_type.toUpperCase()} • ${formatFileSize(book.file_size)}
+                ${thumbnailHtml}
+                <h3>${book.title}</h3>
+                <div style="color: #666; font-size: 0.9rem; margin-bottom: 10px;">
+                    ${book.author || '저자 미상'}
+                    ${book.file_size ? ' • ' + formatFileSize(book.file_size) : ''}
                     ${book.uploaded_at ? ' • ' + formatDate(book.uploaded_at) : ''}
                 </div>
                 
@@ -583,6 +618,9 @@ function displayBooks(books) {
                 ` : '<div style="color: #999; font-style: italic;">아직 읽지 않음</div>'}
                 
                 <div style="margin-top: 15px;">
+                    <button onclick="openBook(${book.id})" class="btn" style="width: auto; padding: 8px 15px; margin-right: 10px; background-color: #4CAF50;">
+                        📖 읽기
+                    </button>
                     <button onclick="updateProgress(${book.id})" class="btn" style="width: auto; padding: 8px 15px; margin-right: 10px;">
                         진행상황 업데이트
                     </button>
@@ -590,6 +628,188 @@ function displayBooks(books) {
             </div>
         `;
     }).join('');
+}
+
+/**
+ * Format file size in human readable format
+ * @param {number} bytes - File size in bytes
+ * @return {string} Formatted file size
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Open a book for reading in the integrated viewer
+ * @param {number} bookId - Book ID to open
+ */
+async function openBook(bookId) {
+    try {
+        const book = currentBooks.find(b => b.id === bookId);
+        if (!book) {
+            showErrorMessage('책을 찾을 수 없습니다.');
+            return;
+        }
+
+        // Show reader tab and switch to it
+        document.getElementById('readerTabBtn').style.display = 'block';
+        switchMainTab('reader');
+        
+        // Update reader header
+        document.getElementById('currentBookTitle').textContent = book.title;
+        
+        // Show loading
+        const readerContent = document.getElementById('readerContent');
+        readerContent.innerHTML = '<div class="loading">책을 불러오는 중...</div>';
+        
+        // Initialize reader state
+        currentReader = {
+            bookId: bookId,
+            book: book,
+            currentPage: 1,
+            totalPages: 1,
+            fontSize: 16,
+            progress: book.progress || {}
+        };
+        
+        // Load content based on file type
+        if (book.file_type === 'epub') {
+            await loadEpubContent(bookId, book);
+        } else if (book.file_type === 'pdf') {
+            await loadPdfContent(bookId, book);
+        } else if (book.file_type === 'cbz' || book.file_type === 'cbr') {
+            await loadComicContent(bookId, book);
+        } else {
+            readerContent.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">지원하지 않는 파일 형식입니다.</div>';
+        }
+        
+        // Restore reading progress
+        restoreReadingProgress();
+        
+    } catch (error) {
+        console.error('Error opening book:', error);
+        showErrorMessage('책을 여는 중 오류가 발생했습니다.');
+    }
+}
+
+/**
+ * Load EPUB content
+ */
+async function loadEpubContent(bookId, book) {
+    try {
+        // For MVP: Load as text content
+        // In production, you would parse EPUB structure
+        const response = await fetch(`${API_BASE}/books/${bookId}/content`);
+        const readerContent = document.getElementById('readerContent');
+        
+        if (response.ok) {
+            const content = await response.text();
+            readerContent.innerHTML = `<div class="epub-content">${content}</div>`;
+        } else {
+            // Fallback: Show reading instructions
+            readerContent.innerHTML = `
+                <div class="epub-content" style="text-align: center; padding: 50px;">
+                    <h2>${book.title}</h2>
+                    <p style="color: #666; margin: 20px 0;">
+                        EPUB 파일 내용을 파싱하는 중입니다...<br>
+                        현재는 MVP 버전으로 기본 텍스트 표시 기능을 제공합니다.
+                    </p>
+                    <p style="line-height: 2; text-align: justify; max-width: 600px; margin: 0 auto;">
+                        이곳에 EPUB 내용이 표시됩니다. 실제 구현에서는 EPUB 파일을 파싱하여 
+                        챕터별로 내용을 표시하고, 목차 탐색, 검색, 북마크 등의 기능을 제공합니다.
+                        현재는 기본적인 뷰어 인터페이스와 진행률 추적 기능이 구현되어 있습니다.
+                    </p>
+                    <div style="margin-top: 30px;">
+                        <a href="${API_BASE}/books/${bookId}/file" 
+                           style="display: inline-block; background: #4CAF50; color: white; 
+                                  padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                            📥 원본 EPUB 파일 다운로드
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Update page info for EPUB
+        currentReader.totalPages = 1; // Will be calculated based on content
+        updatePageInfo();
+        
+    } catch (error) {
+        console.error('Error loading EPUB:', error);
+        document.getElementById('readerContent').innerHTML = 
+            '<div style="text-align: center; padding: 50px; color: #999;">EPUB 내용을 불러오는 중 오류가 발생했습니다.</div>';
+    }
+}
+
+/**
+ * Load PDF content
+ */
+async function loadPdfContent(bookId, book) {
+    const readerContent = document.getElementById('readerContent');
+    
+    // Embed PDF using iframe
+    readerContent.innerHTML = `
+        <iframe 
+            src="${API_BASE}/books/${bookId}/file" 
+            class="pdf-viewer"
+            type="application/pdf">
+            <p>PDF를 표시할 수 없습니다. 
+            <a href="${API_BASE}/books/${bookId}/file" target="_blank">새 창에서 열기</a>
+            </p>
+        </iframe>
+    `;
+    
+    // Update page info for PDF
+    currentReader.totalPages = 1; // Will be detected from PDF
+    updatePageInfo();
+}
+
+/**
+ * Load comic content (CBZ/CBR)
+ */
+async function loadComicContent(bookId, book) {
+    try {
+        // For MVP: Show download link
+        // In production: Extract and display images
+        const readerContent = document.getElementById('readerContent');
+        
+        readerContent.innerHTML = `
+            <div class="comic-viewer">
+                <h2>${book.title}</h2>
+                <p style="color: #666; text-align: center; margin: 20px 0;">
+                    만화/코믹 뷰어 (CBZ/CBR)
+                </p>
+                <div style="text-align: center; padding: 30px; border: 2px dashed #ddd; border-radius: 8px;">
+                    <div style="font-size: 3rem; margin-bottom: 15px;">🎭</div>
+                    <p>만화 파일 내용이 여기에 표시됩니다.</p>
+                    <p style="color: #666; font-size: 0.9rem;">
+                        실제 구현에서는 압축 파일을 해제하여<br>
+                        이미지를 순서대로 표시합니다.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="${API_BASE}/books/${bookId}/file" 
+                           style="display: inline-block; background: #4CAF50; color: white; 
+                                  padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                            📥 원본 파일 다운로드
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Update page info for comics
+        currentReader.totalPages = 1; // Will be number of images
+        updatePageInfo();
+        
+    } catch (error) {
+        console.error('Error loading comic:', error);
+        document.getElementById('readerContent').innerHTML = 
+            '<div style="text-align: center; padding: 50px; color: #999;">만화 내용을 불러오는 중 오류가 발생했습니다.</div>';
+    }
 }
 
 /**

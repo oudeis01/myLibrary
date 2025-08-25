@@ -192,6 +192,187 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
 
+        .book-thumbnail {
+            width: 120px;
+            height: 160px;
+            margin: 0 auto 15px auto;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .book-thumbnail:hover {
+            transform: scale(1.05);
+        }
+
+        .book-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .book-format {
+            font-size: 0.8rem;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.9);
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+        }
+
+        .epub-thumbnail {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .pdf-thumbnail {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .comic-thumbnail {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .unknown-thumbnail {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            color: #333;
+        }
+
+        /* Reader Styles */
+        .reader-container {
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .reader-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+
+        .reader-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #333;
+        }
+
+        .reader-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .reader-controls .btn {
+            padding: 5px 10px;
+            font-size: 0.9rem;
+        }
+
+        .reader-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: white;
+            font-family: Georgia, serif;
+            line-height: 1.6;
+            font-size: var(--reader-font-size, 16px);
+        }
+
+        .reader-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+
+        .progress-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            margin: 0 20px;
+        }
+
+        .reader-footer .progress-bar {
+            flex: 1;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .reader-footer .progress-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s ease;
+        }
+
+        #pageInfo {
+            font-size: 0.9rem;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        /* EPUB Content Styling */
+        .epub-content img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 10px auto;
+        }
+
+        .epub-content h1, .epub-content h2, .epub-content h3 {
+            color: #333;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .epub-content p {
+            margin-bottom: 1em;
+            text-align: justify;
+        }
+
+        /* Comic/Manga Viewer */
+        .comic-viewer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            height: 100%;
+        }
+
+        .comic-page {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* PDF Viewer */
+        .pdf-viewer {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
         .book-title {
             font-size: 1.2rem;
             font-weight: 600;
@@ -330,12 +511,43 @@
             <div class="tab-buttons">
                 <div class="tab-btn active" onclick="switchMainTab('books')">내 도서</div>
                 <div class="tab-btn" onclick="switchMainTab('upload')">도서 업로드</div>
+                <div class="tab-btn" id="readerTabBtn" onclick="switchMainTab('reader')" style="display: none;">📖 뷰어</div>
             </div>
 
             <!-- 도서 목록 탭 -->
             <div id="booksTab" class="tab-content active">
                 <div id="booksLoading" class="loading">도서 목록을 불러오는 중...</div>
                 <div id="booksGrid" class="book-grid"></div>
+            </div>
+
+            <!-- 도서 뷰어 탭 -->
+            <div id="readerTab" class="tab-content">
+                <div id="readerContainer" class="reader-container">
+                    <div id="readerHeader" class="reader-header">
+                        <button id="backToLibrary" class="btn">📚 도서관으로</button>
+                        <h2 id="currentBookTitle">책 제목</h2>
+                        <div id="readerControls" class="reader-controls">
+                            <button id="decreaseFontSize" class="btn">A-</button>
+                            <button id="increaseFontSize" class="btn">A+</button>
+                            <button id="toggleFullscreen" class="btn">🔍</button>
+                        </div>
+                    </div>
+                    
+                    <div id="readerContent" class="reader-content">
+                        <div id="readerLoading" class="loading">책을 불러오는 중...</div>
+                    </div>
+                    
+                    <div id="readerFooter" class="reader-footer">
+                        <button id="prevPage" class="btn">⬅️ 이전</button>
+                        <div id="progressInfo" class="progress-info">
+                            <div id="progressBar" class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                            <span id="pageInfo">1 / 100</span>
+                        </div>
+                        <button id="nextPage" class="btn">다음 ➡️</button>
+                    </div>
+                </div>
             </div>
 
             <!-- 도서 업로드 탭 -->

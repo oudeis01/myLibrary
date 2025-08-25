@@ -78,6 +78,11 @@ void HttpServer::setup_routes() {
         handle_book_download(req, res);
     });
     
+    // File access endpoint (for reading books)
+    server.Get(R"(/api/books/(\d+)/file)", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_book_file_access(req, res);
+    });
+    
     // Progress tracking endpoints
     server.Put(R"(/api/books/(\d+)/progress)", [this](const httplib::Request& req, httplib::Response& res) {
         handle_update_progress(req, res);
@@ -196,10 +201,9 @@ void HttpServer::handle_login(const httplib::Request& req, httplib::Response& re
         std::string username = request_data["username"];
         std::string password = request_data["password"];
         
-        // Hash password for authentication
-        std::string password_hash = Auth::hash_password(password);
-        
-        if (database->authenticate_user(username, password_hash)) {
+        // Don't hash password for authentication - use plain password
+        // The database method will handle password verification
+        if (database->authenticate_user(username, password)) {
             // Generate session token
             std::string session_token = Auth::generate_session_token(username);
             
@@ -392,13 +396,132 @@ void HttpServer::handle_book_download(const httplib::Request& req, httplib::Resp
         // Parse book ID from URL
         long book_id = std::stol(req.matches[1]);
         
-        // For MVP, this is a placeholder
-        // In a full implementation, you would:
-        // 1. Get book file path from database
-        // 2. Check user permissions
-        // 3. Stream the file content
+        // Get book information from database
+        nlohmann::json all_books = database->get_all_books();
+        nlohmann::json book_info;
         
-        send_error(res, 501, "Book download not implemented in MVP");
+        for (const auto& book : all_books) {
+            if (book["id"] == book_id) {
+                book_info = book;
+                break;
+            }
+        }
+        
+        if (book_info.empty()) {
+            send_error(res, 404, "Book not found");
+            return;
+        }
+        
+        std::string file_path = book_info["file_path"];
+        
+        // Check if file exists
+        if (!fs::exists(file_path)) {
+            send_error(res, 404, "Book file not found on disk");
+            return;
+        }
+        
+        // Read file content
+        std::ifstream file(file_path, std::ios::binary);
+        if (!file.is_open()) {
+            send_error(res, 500, "Failed to open book file");
+            return;
+        }
+        
+        // Get file content
+        std::string content((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+        file.close();
+        
+        // Set appropriate headers
+        std::string filename = book_info["title"].get<std::string>() + "." + book_info["file_type"].get<std::string>();
+        res.set_header("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        
+        // Set content type based on file type
+        std::string file_type = book_info["file_type"];
+        if (file_type == "epub") {
+            res.set_header("Content-Type", "application/epub+zip");
+        } else if (file_type == "pdf") {
+            res.set_header("Content-Type", "application/pdf");
+        } else if (file_type == "cbz") {
+            res.set_header("Content-Type", "application/zip");
+        } else if (file_type == "cbr") {
+            res.set_header("Content-Type", "application/x-rar-compressed");
+        } else {
+            res.set_header("Content-Type", "application/octet-stream");
+        }
+        
+        res.set_content(content, res.get_header_value("Content-Type"));
+        
+    } catch (const std::exception& e) {
+        send_error(res, 400, e.what());
+    }
+}
+
+void HttpServer::handle_book_file_access(const httplib::Request& req, httplib::Response& res) {
+    try {
+        // Validate session
+        std::string username = validate_session(req);
+        if (username.empty()) {
+            send_error(res, 401, "Authentication required");
+            return;
+        }
+        
+        // Parse book ID from URL
+        long book_id = std::stol(req.matches[1]);
+        
+        // Get book information from database
+        nlohmann::json all_books = database->get_all_books();
+        nlohmann::json book_info;
+        
+        for (const auto& book : all_books) {
+            if (book["id"] == book_id) {
+                book_info = book;
+                break;
+            }
+        }
+        
+        if (book_info.empty()) {
+            send_error(res, 404, "Book not found");
+            return;
+        }
+        
+        std::string file_path = book_info["file_path"];
+        
+        // Check if file exists
+        if (!fs::exists(file_path)) {
+            send_error(res, 404, "Book file not found on disk");
+            return;
+        }
+        
+        // Read file content
+        std::ifstream file(file_path, std::ios::binary);
+        if (!file.is_open()) {
+            send_error(res, 500, "Failed to open book file");
+            return;
+        }
+        
+        // Get file content
+        std::string content((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+        file.close();
+        
+        // Set appropriate headers for inline viewing
+        std::string file_type = book_info["file_type"];
+        if (file_type == "epub") {
+            res.set_header("Content-Type", "application/epub+zip");
+        } else if (file_type == "pdf") {
+            res.set_header("Content-Type", "application/pdf");
+        } else if (file_type == "cbz") {
+            res.set_header("Content-Type", "application/zip");
+        } else if (file_type == "cbr") {
+            res.set_header("Content-Type", "application/x-rar-compressed");
+        } else {
+            res.set_header("Content-Type", "application/octet-stream");
+        }
+        
+        // For inline viewing (not download)
+        res.set_header("Content-Disposition", "inline");
+        res.set_content(content, res.get_header_value("Content-Type"));
         
     } catch (const std::exception& e) {
         send_error(res, 400, e.what());

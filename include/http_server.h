@@ -148,6 +148,13 @@ private:
     void handle_book_download(const httplib::Request& req, httplib::Response& res);
 
     /**
+     * @brief Handles requests to access book files for reading
+     * @param req HTTP request (GET /api/books/{book_id}/file)
+     * @param res HTTP response
+     */
+    void handle_book_file_access(const httplib::Request& req, httplib::Response& res);
+
+    /**
      * @brief Handles health check requests
      * @param req HTTP request (GET /api/health)
      * @param res HTTP response

@@ -60,10 +60,10 @@ public:
     /**
      * @brief Validates user credentials
      * @param username Username to authenticate
-     * @param password_hash BCrypt hashed password
+     * @param password Plain text password (will be verified against stored hash)
      * @return true if authentication successful, false otherwise
      */
-    bool authenticate_user(const std::string& username, const std::string& password_hash);
+    bool authenticate_user(const std::string& username, const std::string& password);
 
     /**
      * @brief Retrieves user ID by username
