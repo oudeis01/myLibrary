@@ -1,4 +1,4 @@
-import type { Book, AuthResponse, ReadingProgress, ApiResponse } from './types';
+import type { Book, AuthResponse, ReadingProgress } from './types';
 
 const API_BASE = 'http://localhost:8080/api';
 

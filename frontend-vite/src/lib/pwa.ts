@@ -1,5 +1,6 @@
 export class PWAManager {
   private swRegistration: ServiceWorkerRegistration | null = null;
+  private deferredPrompt: any = null;
 
   async init(): Promise<void> {
     if ('serviceWorker' in navigator) {
@@ -15,17 +16,15 @@ export class PWAManager {
   }
 
   private setupInstallPrompt(): void {
-    let deferredPrompt: any;
-
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      deferredPrompt = e;
+      this.deferredPrompt = e;
       this.showInstallButton();
     });
 
     window.addEventListener('appinstalled', () => {
       console.log('PWA was installed');
-      deferredPrompt = null;
+      this.deferredPrompt = null;
     });
   }
 
@@ -39,19 +38,18 @@ export class PWAManager {
   }
 
   private async promptInstall(): Promise<void> {
-    const deferredPrompt = (window as any).deferredPrompt;
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
+    if (this.deferredPrompt) {
+      this.deferredPrompt.prompt();
+      const { outcome } = await this.deferredPrompt.userChoice;
       console.log(`User response to the install prompt: ${outcome}`);
-      (window as any).deferredPrompt = null;
+      this.deferredPrompt = null;
     }
   }
 
   async updateApp(): Promise<boolean> {
     if (this.swRegistration) {
-      const registration = await this.swRegistration.update();
-      return registration.waiting !== null;
+      await this.swRegistration.update();
+      return this.swRegistration.waiting !== null;
     }
     return false;
   }

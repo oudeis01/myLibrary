@@ -1,18 +1,15 @@
 import type { Book, OfflineBook, ReadingProgress, SyncProgress } from './types';
 import { bookApi, progressApi } from './api';
-import { AuthManager } from './auth';
 import { StorageManager } from './storage';
 import { ReaderManager } from './readers/reader-manager';
 
 export class BookManager {
-  private auth: AuthManager;
   private storage: StorageManager;
   private reader: ReaderManager;
 
-  constructor(auth: AuthManager, storage: StorageManager) {
-    this.auth = auth;
+  constructor(storage: StorageManager) {
     this.storage = storage;
-    this.reader = new ReaderManager(this.storage);
+    this.reader = new ReaderManager();
     
     this.setupSyncListener();
   }

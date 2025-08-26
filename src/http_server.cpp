@@ -24,6 +24,9 @@ HttpServer::HttpServer(const std::string& db_connection_string,
     // Initialize book manager
     book_manager = std::make_unique<BookManager>(books_directory);
     
+    // Initialize library scanner
+    library_scanner = std::make_unique<LibraryScanner>(database.get(), book_manager.get());
+    
     // Setup server
     setup_cors();
     setup_routes();
@@ -86,6 +89,23 @@ void HttpServer::setup_routes() {
     // Thumbnail access endpoint
     server.Get(R"(/api/books/(\d+)/thumbnail)", [this](const httplib::Request& req, httplib::Response& res) {
         handle_book_thumbnail(req, res);
+    });
+
+    // Library maintenance endpoints
+    server.Post("/api/library/cleanup-orphaned", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_cleanup_orphaned(req, res);
+    });
+    server.Post("/api/library/sync-scan", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_sync_scan(req, res);
+    });
+    server.Post("/api/library/scan", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_library_scan(req, res);
+    });
+    server.Get("/api/library/scan-status", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_scan_status(req, res);
+    });
+    server.Post("/api/library/scan-stop", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_stop_scan(req, res);
     });
     
     // Progress tracking endpoints
@@ -611,6 +631,188 @@ void HttpServer::handle_book_thumbnail(const httplib::Request& req, httplib::Res
         
     } catch (const std::exception& e) {
         send_error(res, 500, "Failed to get thumbnail: " + std::string(e.what()));
+    }
+}
+
+void HttpServer::handle_cleanup_orphaned(const httplib::Request& req, httplib::Response& res) {
+    // Validate session
+    std::string username = validate_session(req);
+    if (username.empty()) {
+        send_error(res, 401, "Authentication required");
+        return;
+    }
+    
+    // Get user ID
+    long user_id = database->get_user_id(username);
+    if (user_id == -1) {
+        send_error(res, 404, "User not found");
+        return;
+    }
+    
+    try {
+        int cleaned_count = database->cleanup_orphaned_books();
+        
+        nlohmann::json response;
+        response["success"] = true;
+        response["cleaned_count"] = cleaned_count;
+        response["message"] = "Successfully cleaned " + std::to_string(cleaned_count) + " orphaned book records";
+        
+        res.set_content(response.dump(4), "application/json");
+        
+        std::cout << "Cleaned up " << cleaned_count << " orphaned books for user " << user_id << std::endl;
+        
+    } catch (const std::exception& e) {
+        send_error(res, 500, "Failed to cleanup orphaned books: " + std::string(e.what()));
+    }
+}
+
+void HttpServer::handle_sync_scan(const httplib::Request& req, httplib::Response& res) {
+    // Validate session
+    std::string username = validate_session(req);
+    if (username.empty()) {
+        send_error(res, 401, "Authentication required");
+        return;
+    }
+    
+    // Get user ID
+    long user_id = database->get_user_id(username);
+    if (user_id == -1) {
+        send_error(res, 404, "User not found");
+        return;
+    }
+    
+    try {
+        // Get books directory from book manager (assuming it has a getter)
+        std::string books_directory = book_manager->get_books_directory();
+        
+        bool started = library_scanner->start_sync_scan(books_directory, true);  // cleanup_orphaned = true
+        
+        nlohmann::json response;
+        if (started) {
+            response["success"] = true;
+            response["message"] = "Library synchronization scan started";
+            res.set_content(response.dump(4), "application/json");
+            
+            std::cout << "Sync scan started by user " << user_id << std::endl;
+        } else {
+            response["success"] = false;
+            response["message"] = "Scan already in progress or directory not found";
+            res.status = 409;  // Conflict
+            res.set_content(response.dump(4), "application/json");
+        }
+        
+    } catch (const std::exception& e) {
+        send_error(res, 500, "Failed to start sync scan: " + std::string(e.what()));
+    }
+}
+
+void HttpServer::handle_library_scan(const httplib::Request& req, httplib::Response& res) {
+    // Validate session
+    std::string username = validate_session(req);
+    if (username.empty()) {
+        send_error(res, 401, "Authentication required");
+        return;
+    }
+    
+    // Get user ID
+    long user_id = database->get_user_id(username);
+    if (user_id == -1) {
+        send_error(res, 404, "User not found");
+        return;
+    }
+    
+    try {
+        // Get books directory from book manager
+        std::string books_directory = book_manager->get_books_directory();
+        
+        bool started = library_scanner->start_scan(books_directory);  // Regular scan, no cleanup
+        
+        nlohmann::json response;
+        if (started) {
+            response["success"] = true;
+            response["message"] = "Library scan started";
+            res.set_content(response.dump(4), "application/json");
+            std::cout << "Library scan started by user " << user_id << std::endl;
+        } else {
+            response["success"] = false;
+            response["message"] = "Scan already in progress or failed to start";
+            res.set_content(response.dump(4), "application/json");
+        }
+        
+    } catch (const std::exception& e) {
+        send_error(res, 500, "Failed to start library scan: " + std::string(e.what()));
+    }
+}
+
+void HttpServer::handle_scan_status(const httplib::Request& req, httplib::Response& res) {
+    // Validate session
+    std::string username = validate_session(req);
+    if (username.empty()) {
+        send_error(res, 401, "Authentication required");
+        return;
+    }
+    
+    // Get user ID  
+    long user_id = database->get_user_id(username);
+    if (user_id == -1) {
+        send_error(res, 404, "User not found");
+        return;
+    }
+    
+    try {
+        ScanStatus status = library_scanner->get_status();
+        
+        nlohmann::json response;
+        response["is_scanning"] = status.is_scanning;
+        response["progress_percentage"] = status.progress_percentage;
+        response["current_book"] = status.current_book;
+        response["total_books"] = status.total_books;
+        response["processed_books"] = status.processed_books;
+        response["orphaned_cleaned"] = status.orphaned_cleaned;
+        response["errors"] = status.errors;
+        
+        // Convert start_time to timestamp
+        if (status.is_scanning) {
+            auto epoch = status.start_time.time_since_epoch();
+            auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(epoch).count();
+            response["start_timestamp"] = timestamp;
+        }
+        
+        res.set_content(response.dump(4), "application/json");
+        
+    } catch (const std::exception& e) {
+        send_error(res, 500, "Failed to get scan status: " + std::string(e.what()));
+    }
+}
+
+void HttpServer::handle_stop_scan(const httplib::Request& req, httplib::Response& res) {
+    // Validate session
+    std::string username = validate_session(req);
+    if (username.empty()) {
+        send_error(res, 401, "Authentication required");
+        return;
+    }
+    
+    // Get user ID
+    long user_id = database->get_user_id(username);
+    if (user_id == -1) {
+        send_error(res, 404, "User not found");
+        return;
+    }
+    
+    try {
+        library_scanner->stop_scan();
+        
+        nlohmann::json response;
+        response["success"] = true;
+        response["message"] = "Scan stop requested";
+        
+        res.set_content(response.dump(4), "application/json");
+        
+        std::cout << "Scan stop requested by user " << user_id << std::endl;
+        
+    } catch (const std::exception& e) {
+        send_error(res, 500, "Failed to stop scan: " + std::string(e.what()));
     }
 }
 

@@ -141,6 +141,18 @@ public:
      * @return true if connection is active, false otherwise
      */
     bool is_connected() const;
+
+    /**
+     * @brief Finds books in database where file doesn't exist on disk
+     * @return Vector of book IDs that are orphaned
+     */
+    std::vector<int> find_orphaned_book_ids();
+
+    /**
+     * @brief Removes orphaned books from database
+     * @return Number of orphaned books removed
+     */
+    int cleanup_orphaned_books();
 };
 
 #endif // DATABASE_H

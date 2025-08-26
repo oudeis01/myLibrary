@@ -124,6 +124,12 @@ public:
     void ensure_books_directory_exists();
 
     /**
+     * @brief Gets the books directory path
+     * @return Path to the books directory
+     */
+    const std::string& get_books_directory() const;
+
+    /**
      * @brief Gets the full path for storing a book file
      * @param filename Name of the file
      * @return Full path for the file

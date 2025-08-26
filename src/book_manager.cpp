@@ -708,3 +708,7 @@ void BookManager::extract_cover_image_from_epub(unzFile epub_file, const std::st
         }
     }
 }
+
+const std::string& BookManager::get_books_directory() const {
+    return books_directory;
+}

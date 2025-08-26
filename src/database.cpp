@@ -10,6 +10,7 @@
 #include "auth.h"
 #include <stdexcept>
 #include <iostream>
+#include <filesystem>
 
 Database::Database(const std::string& connection_string) {
     try {
@@ -49,7 +50,15 @@ void Database::create_tables_if_not_exists() {
                 file_path VARCHAR(500) UNIQUE NOT NULL,
                 file_type VARCHAR(10) NOT NULL,
                 file_size BIGINT NOT NULL DEFAULT 0,
-                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                description TEXT,
+                publisher VARCHAR(255),
+                isbn VARCHAR(20),
+                language VARCHAR(10) DEFAULT 'en',
+                thumbnail_path VARCHAR(500),
+                page_count INTEGER,
+                metadata_extracted BOOLEAN DEFAULT FALSE,
+                extraction_error TEXT
             )
         )");
 
@@ -107,7 +116,7 @@ void Database::prepare_statements() {
             "progress_details = EXCLUDED.progress_details, "
             "last_accessed_at = CURRENT_TIMESTAMP");
         conn->prepare("get_user_books_with_progress", 
-            "SELECT b.id, b.title, b.author, b.file_type, b.file_size, b.uploaded_at, "
+            "SELECT b.id, b.title, b.author, b.file_type, b.file_size, b.uploaded_at, b.thumbnail_path, "
             "p.progress_details, p.last_accessed_at "
             "FROM books b "
             "LEFT JOIN user_book_progress p ON b.id = p.book_id AND p.user_id = $1 "
@@ -115,6 +124,13 @@ void Database::prepare_statements() {
         conn->prepare("get_progress_by_user_book", 
             "SELECT progress_details, last_accessed_at FROM user_book_progress "
             "WHERE user_id = $1 AND book_id = $2");
+
+        // Orphaned records management
+        conn->prepare("find_orphaned_books", 
+            "SELECT id, title, file_path FROM books "
+            "WHERE file_path IS NOT NULL AND file_path != ''");
+        conn->prepare("delete_orphaned_books", 
+            "DELETE FROM books WHERE id = ANY($1::int[])");
 
         std::cout << "Database prepared statements created successfully." << std::endl;
     } catch (const std::exception& e) {
@@ -236,6 +252,7 @@ nlohmann::json Database::get_user_books_with_progress(long user_id) {
             book["file_type"] = row["file_type"].as<std::string>();
             book["file_size"] = row["file_size"].as<long>();
             book["uploaded_at"] = row["uploaded_at"].as<std::string>();
+            book["thumbnail_path"] = row["thumbnail_path"].is_null() ? "" : row["thumbnail_path"].as<std::string>();
             
             if (!row["progress_details"].is_null()) {
                 book["progress"] = nlohmann::json::parse(row["progress_details"].as<std::string>());
@@ -328,5 +345,63 @@ nlohmann::json Database::get_user_book_progress(long user_id, long book_id) {
     } catch (const std::exception& e) {
         std::cerr << "Error getting user book progress: " << e.what() << std::endl;
         return nullptr;
+    }
+}
+
+/**
+ * @brief Finds books in database where file doesn't exist on disk
+ * @return Vector of book IDs that are orphaned
+ */
+std::vector<int> Database::find_orphaned_book_ids() {
+    std::vector<int> orphaned_ids;
+    try {
+        pqxx::work txn(*conn);
+        pqxx::result result = txn.exec_prepared("find_orphaned_books");
+        
+        for (auto row : result) {
+            std::string file_path = row["file_path"].c_str();
+            if (!std::filesystem::exists(file_path)) {
+                orphaned_ids.push_back(row["id"].as<int>());
+            }
+        }
+        
+        std::cout << "Found " << orphaned_ids.size() << " orphaned book records" << std::endl;
+        return orphaned_ids;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error finding orphaned books: " << e.what() << std::endl;
+        return orphaned_ids;
+    }
+}
+
+/**
+ * @brief Removes orphaned books from database
+ * @return Number of orphaned books removed
+ */
+int Database::cleanup_orphaned_books() {
+    try {
+        auto orphaned_ids = find_orphaned_book_ids();
+        if (orphaned_ids.empty()) {
+            std::cout << "No orphaned books found" << std::endl;
+            return 0;
+        }
+        
+        pqxx::work txn(*conn);
+        // Convert to PostgreSQL array format
+        std::string id_array = "{" + std::to_string(orphaned_ids[0]);
+        for (size_t i = 1; i < orphaned_ids.size(); i++) {
+            id_array += "," + std::to_string(orphaned_ids[i]);
+        }
+        id_array += "}";
+        
+        txn.exec_params("DELETE FROM books WHERE id = ANY($1::int[])", id_array);
+        txn.commit();
+        
+        std::cout << "Successfully cleaned up " << orphaned_ids.size() << " orphaned books" << std::endl;
+        return static_cast<int>(orphaned_ids.size());
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error cleaning up orphaned books: " << e.what() << std::endl;
+        return 0;
     }
 }

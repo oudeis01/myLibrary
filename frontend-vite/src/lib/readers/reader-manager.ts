@@ -1,17 +1,15 @@
 import type { Book, ReadingProgress } from '../types';
-import { StorageManager } from '../storage';
 import { EpubReader } from './epub-reader';
 import { PdfReader } from './pdf-reader';
 import { ComicReader } from './comic-reader';
 
 export class ReaderManager {
-  private storage: StorageManager;
   private currentReader: EpubReader | PdfReader | ComicReader | null = null;
   
   public onProgressUpdate?: (progress: Partial<ReadingProgress>) => void;
 
-  constructor(storage: StorageManager) {
-    this.storage = storage;
+  constructor() {
+    // No longer need storage parameter
   }
 
   async openBook(

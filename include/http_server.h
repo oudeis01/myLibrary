@@ -13,6 +13,7 @@
 #include <memory>
 #include "database.h"
 #include "book_manager.h"
+#include "library_scanner.h"
 
 /**
  * @class HttpServer
@@ -29,6 +30,7 @@ private:
     httplib::Server server;                    ///< HTTP server instance
     std::unique_ptr<Database> database;        ///< Database connection
     std::unique_ptr<BookManager> book_manager; ///< Book file manager
+    std::unique_ptr<LibraryScanner> library_scanner; ///< Library scanner for background operations
     int port;                                  ///< Server port
 
     /**
@@ -160,6 +162,41 @@ private:
      * @param res HTTP response
      */
     void handle_book_thumbnail(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Handles requests to cleanup orphaned book records
+     * @param req HTTP request (POST /api/library/cleanup-orphaned)
+     * @param res HTTP response
+     */
+    void handle_cleanup_orphaned(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Handles requests to start library synchronization scan
+     * @param req HTTP request (POST /api/library/sync-scan)
+     * @param res HTTP response
+     */
+    void handle_sync_scan(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Start regular library scan (finds new books only)
+     * @param req HTTP request (POST /api/library/scan)
+     * @param res HTTP response
+     */
+    void handle_library_scan(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Handles requests to get scan status
+     * @param req HTTP request (GET /api/library/scan-status)
+     * @param res HTTP response
+     */
+    void handle_scan_status(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Handles requests to stop current scan
+     * @param req HTTP request (POST /api/library/scan-stop)
+     * @param res HTTP response
+     */
+    void handle_stop_scan(const httplib::Request& req, httplib::Response& res);
 
     /**
      * @brief Handles requests to get individual book details

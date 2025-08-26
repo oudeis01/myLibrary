@@ -39,6 +39,7 @@ add_executable(mylibrary_server
     src/auth.cpp
     src/book_manager.cpp
     src/http_server.cpp
+    src/library_scanner.cpp
 )
 
 # Set target properties and include directories

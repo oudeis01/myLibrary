@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
-import type { OfflineBook, ReadingProgress, SyncProgress } from './types';
+import type { OfflineBook, SyncProgress } from './types';
 
 export class StorageManager {
   private db: IDBPDatabase | null = null;
@@ -54,7 +54,8 @@ export class StorageManager {
 
   async getPendingSyncProgress(): Promise<SyncProgress[]> {
     if (!this.db) return [];
-    return await this.db.getAllFromIndex('progress', 'needsSync', true);
+    const allProgress = await this.db.getAll('progress');
+    return allProgress.filter(p => p.needsSync);
   }
 
   async markProgressSynced(bookId: number): Promise<void> {
