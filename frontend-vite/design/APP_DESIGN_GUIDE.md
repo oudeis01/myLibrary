@@ -108,7 +108,7 @@ graph TD
 
 - **요소 계층 구조:**
 ```mermaid
-graph TD
+graph LR
     A[관리자 페이지]
 
     A --> B[라이브러리 스캔 섹션]
