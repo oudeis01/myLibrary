@@ -2,6 +2,31 @@
 
 [한국어 문서 보기](README.ko.md)
 
+```mermaid
+graph TD
+    subgraph User Interaction
+        A[User/Client]
+    end
+
+    subgraph Frontend Layer
+        B(Vite/TypeScript PWA)
+    end
+
+    subgraph Backend Layer
+        C(C++ Server)
+    end
+
+    subgraph Data Storage
+        D[PostgreSQL Database]
+        E[Book Storage - Filesystem]
+    end
+
+    A --> B
+    B -- HTTP/API --> C
+    C --> D
+    C --> E
+```
+
 A self-hosted digital library server featuring a high-performance C++ backend and a modern, Vite-powered Progressive Web App (PWA) frontend.
 
 ## Core Features

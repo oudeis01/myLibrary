@@ -1,5 +1,30 @@
 # myLibrary
 
+```mermaid
+graph TD
+    subgraph 사용자 상호작용
+        A[사용자/클라이언트]
+    end
+
+    subgraph 프론트엔드 계층
+        B(Vite/TypeScript PWA)
+    end
+
+    subgraph 백엔드 계층
+        C(C++ 서버)
+    end
+
+    subgraph 데이터 저장소
+        D[PostgreSQL 데이터베이스]
+        E[도서 저장소 - 파일 시스템]
+    end
+
+    A --> B
+    B -- HTTP/API --> C
+    C --> D
+    C --> E
+```
+
 고성능 C++ 백엔드와 Vite 기반의 모던 PWA(Progressive Web App) 프론트엔드를 갖춘 셀프 호스팅 디지털 라이브러리 서버입니다.
 
 ## 핵심 기능
