@@ -56,15 +56,14 @@ target_link_libraries(mylibrary_server PRIVATE
 # Set compiler flags
 target_compile_options(mylibrary_server PRIVATE ${PQXX_CFLAGS_OTHER})
 
-# Create directories for uploads and books
+# Create directories for uploads, books, and thumbnails
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/uploads)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/books)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/thumbnails)
 
-# Copy setup script to build directory
+# Copy setup scripts to build directory
 configure_file(setup_db.sql ${CMAKE_CURRENT_BINARY_DIR}/setup_db.sql COPYONLY)
-
-# Copy web directory to build directory
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/web DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+configure_file(upgrade_db.sql ${CMAKE_CURRENT_BINARY_DIR}/upgrade_db.sql COPYONLY)
 
 # Print configuration summary
 message(STATUS "=== MyLibrary Server Configuration ===")

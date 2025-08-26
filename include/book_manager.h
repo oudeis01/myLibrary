@@ -10,7 +10,24 @@
 #define BOOK_MANAGER_H
 
 #include <string>
+#include <vector>
 #include <nlohmann/json.hpp>
+
+/**
+ * @struct BookMetadata
+ * @brief Contains comprehensive metadata extracted from a book file
+ */
+struct BookMetadata {
+    std::string title;           ///< Book title
+    std::string author;          ///< Book author
+    std::string description;     ///< Book description/summary
+    std::string publisher;       ///< Publisher name
+    std::string isbn;           ///< ISBN number
+    std::string language;       ///< Language code (e.g., "en", "ko")
+    int page_count;             ///< Total number of pages (if available)
+    std::vector<unsigned char> cover_image;  ///< Cover image data
+    std::string cover_format;   ///< Cover image format (jpg, png, etc.)
+};
 
 /**
  * @struct BookInfo
@@ -22,6 +39,10 @@ struct BookInfo {
     std::string file_type;    ///< File type (epub, pdf, cbz)
     size_t file_size;         ///< File size in bytes
     std::string file_path;    ///< Full path to the stored file
+    std::string thumbnail_path; ///< Path to generated thumbnail
+    BookMetadata metadata;    ///< Extracted metadata
+    bool metadata_extracted;  ///< Whether metadata extraction succeeded
+    std::string extraction_error; ///< Error message if extraction failed
 };
 
 /**
@@ -107,6 +128,54 @@ public:
      * @return Full path for the file
      */
     std::string get_book_file_path(const std::string& filename) const;
+
+    /**
+     * @brief Extracts comprehensive metadata from an EPUB file
+     * @param file_path Path to the EPUB file
+     * @return BookMetadata struct containing extracted information
+     */
+    static BookMetadata extract_epub_metadata(const std::string& file_path);
+
+    /**
+     * @brief Extracts metadata from a PDF file
+     * @param file_path Path to the PDF file
+     * @return BookMetadata struct containing extracted information
+     */
+    static BookMetadata extract_pdf_metadata(const std::string& file_path);
+
+    /**
+     * @brief Extracts metadata from a comic book archive (CBZ/CBR)
+     * @param file_path Path to the archive file
+     * @return BookMetadata struct containing extracted information
+     */
+    static BookMetadata extract_comic_metadata(const std::string& file_path);
+
+    /**
+     * @brief Generates a thumbnail for a book
+     * @param file_path Path to the book file
+     * @param file_type Type of the book file
+     * @param cover_image Cover image data (if available)
+     * @param output_path Path where thumbnail should be saved
+     * @return true if thumbnail was generated successfully, false otherwise
+     */
+    static bool generate_thumbnail(const std::string& file_path,
+                                 const std::string& file_type,
+                                 const std::vector<unsigned char>& cover_image,
+                                 const std::string& output_path);
+
+    /**
+     * @brief Gets the thumbnail directory path
+     * @return Path to thumbnails directory
+     */
+    std::string get_thumbnails_directory() const;
+
+    /**
+     * @brief Ensures thumbnails directory exists
+     */
+    void ensure_thumbnails_directory_exists();
+
+private:
+    std::string thumbnails_directory; ///< Directory where thumbnails are stored
 };
 
 #endif // BOOK_MANAGER_H

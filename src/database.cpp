@@ -97,7 +97,7 @@ void Database::prepare_statements() {
         conn->prepare("get_book_by_id", 
             "SELECT * FROM books WHERE id = $1");
         conn->prepare("get_all_books", 
-            "SELECT id, title, author, file_type, file_size, uploaded_at FROM books ORDER BY uploaded_at DESC");
+            "SELECT id, title, author, file_path, file_type, file_size, uploaded_at FROM books ORDER BY uploaded_at DESC");
 
         // Progress operations
         conn->prepare("upsert_progress", 
@@ -259,6 +259,7 @@ nlohmann::json Database::get_all_books() {
             book["id"] = row["id"].as<long>();
             book["title"] = row["title"].as<std::string>();
             book["author"] = row["author"].is_null() ? "" : row["author"].as<std::string>();
+            book["file_path"] = row["file_path"].as<std::string>();
             book["file_type"] = row["file_type"].as<std::string>();
             book["file_size"] = row["file_size"].as<long>();
             book["uploaded_at"] = row["uploaded_at"].as<std::string>();

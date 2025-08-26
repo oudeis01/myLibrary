@@ -155,6 +155,27 @@ private:
     void handle_book_file_access(const httplib::Request& req, httplib::Response& res);
 
     /**
+     * @brief Handles requests to get individual book details
+     * @param req HTTP request (GET /api/books/{book_id})
+     * @param res HTTP response
+     */
+    void handle_get_book_details(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Handles requests to get book thumbnail
+     * @param req HTTP request (GET /api/books/{book_id}/thumbnail)
+     * @param res HTTP response
+     */
+    void handle_get_book_thumbnail(const httplib::Request& req, httplib::Response& res);
+
+    /**
+     * @brief Handles requests to regenerate book metadata
+     * @param req HTTP request (POST /api/books/{book_id}/extract-metadata)
+     * @param res HTTP response
+     */
+    void handle_regenerate_metadata(const httplib::Request& req, httplib::Response& res);
+
+    /**
      * @brief Handles health check requests
      * @param req HTTP request (GET /api/health)
      * @param res HTTP response

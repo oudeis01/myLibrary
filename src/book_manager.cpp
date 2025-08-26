@@ -18,7 +18,9 @@
 namespace fs = std::filesystem;
 
 BookManager::BookManager(const std::string& books_dir) : books_directory(books_dir) {
+    thumbnails_directory = books_dir + "/thumbnails";
     ensure_books_directory_exists();
+    ensure_thumbnails_directory_exists();
 }
 
 BookInfo BookManager::save_uploaded_book(const std::string& file_content, 
@@ -63,24 +65,71 @@ BookInfo BookManager::save_uploaded_book(const std::string& file_content,
     book_info.file_type = file_type;
     book_info.file_size = file_content.size();
     
-    // For MVP, use filename as title and empty author
-    // Future versions can implement proper metadata extraction
-    std::string base_name = fs::path(original_filename).stem().string();
-    book_info.title = base_name;
-    book_info.author = "";
+    // Initialize metadata extraction
+    book_info.metadata_extracted = false;
+    book_info.extraction_error = "";
     
-    // Try to parse author and title from filename if it follows common patterns
-    // Pattern: "Author - Title.ext" or "Title by Author.ext"
-    std::regex author_title_pattern1(R"((.+?)\s*-\s*(.+))");
-    std::regex author_title_pattern2(R"((.+?)\s+by\s+(.+))");
-    
-    std::smatch match;
-    if (std::regex_match(base_name, match, author_title_pattern1)) {
-        book_info.author = match[1].str();
-        book_info.title = match[2].str();
-    } else if (std::regex_match(base_name, match, author_title_pattern2)) {
-        book_info.title = match[1].str();
-        book_info.author = match[2].str();
+    try {
+        // Extract comprehensive metadata based on file type
+        if (file_type == "epub") {
+            book_info.metadata = extract_epub_metadata(file_path);
+        } else if (file_type == "pdf") {
+            book_info.metadata = extract_pdf_metadata(file_path);
+        } else if (file_type == "cbz" || file_type == "cbr") {
+            book_info.metadata = extract_comic_metadata(file_path);
+        } else {
+            // Fallback to filename parsing
+            std::string base_name = fs::path(original_filename).stem().string();
+            book_info.metadata.title = base_name;
+            book_info.metadata.author = "";
+            
+            // Try to parse author and title from filename
+            std::regex author_title_pattern1(R"((.+?)\s*-\s*(.+))");
+            std::regex author_title_pattern2(R"((.+?)\s+by\s+(.+))");
+            
+            std::smatch match;
+            if (std::regex_match(base_name, match, author_title_pattern1)) {
+                book_info.metadata.author = match[1].str();
+                book_info.metadata.title = match[2].str();
+            } else if (std::regex_match(base_name, match, author_title_pattern2)) {
+                book_info.metadata.title = match[1].str();
+                book_info.metadata.author = match[2].str();
+            }
+        }
+        
+        // Use extracted metadata for book info
+        book_info.title = book_info.metadata.title.empty() ? 
+            fs::path(original_filename).stem().string() : book_info.metadata.title;
+        book_info.author = book_info.metadata.author;
+        
+        // Generate thumbnail if we have cover image
+        if (!book_info.metadata.cover_image.empty()) {
+            std::string thumbnail_filename = "thumb_" + unique_filename + ".jpg";
+            std::string thumbnail_path = get_thumbnails_directory() + "/" + thumbnail_filename;
+            
+            if (generate_thumbnail(file_path, file_type, book_info.metadata.cover_image, thumbnail_path)) {
+                book_info.thumbnail_path = thumbnail_path;
+            }
+        }
+        
+        book_info.metadata_extracted = true;
+        
+    } catch (const std::exception& e) {
+        book_info.extraction_error = e.what();
+        book_info.metadata_extracted = false;
+        
+        // Fallback to basic filename parsing
+        std::string base_name = fs::path(original_filename).stem().string();
+        book_info.title = base_name;
+        book_info.author = "";
+        
+        // Try to parse author and title from filename
+        std::regex author_title_pattern1(R"((.+?)\s*-\s*(.+))");
+        std::smatch match;
+        if (std::regex_match(base_name, match, author_title_pattern1)) {
+            book_info.author = match[1].str();
+            book_info.title = match[2].str();
+        }
     }
     
     // Trim whitespace
@@ -233,4 +282,169 @@ std::string BookManager::get_book_file_path(const std::string& filename) const {
     fs::path books_path(books_directory);
     fs::path file_path = books_path / filename;
     return file_path.string();
+}
+
+std::string BookManager::get_thumbnails_directory() const {
+    return thumbnails_directory;
+}
+
+void BookManager::ensure_thumbnails_directory_exists() {
+    try {
+        if (!fs::exists(thumbnails_directory)) {
+            fs::create_directories(thumbnails_directory);
+        }
+        
+        if (!fs::is_directory(thumbnails_directory)) {
+            throw std::runtime_error("Thumbnails path exists but is not a directory: " + thumbnails_directory);
+        }
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to setup thumbnails directory: " + std::string(e.what()));
+    }
+}
+
+BookMetadata BookManager::extract_epub_metadata(const std::string& file_path) {
+    BookMetadata metadata;
+    
+    // For now, implement basic EPUB metadata extraction
+    // This is a simplified implementation
+    try {
+        // Read the EPUB file
+        std::ifstream file(file_path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Cannot open EPUB file");
+        }
+        
+        // For MVP, we'll do basic filename parsing
+        // TODO: Implement full EPUB parsing with container.xml and OPF
+        fs::path epub_path(file_path);
+        std::string base_name = epub_path.stem().string();
+        
+        // Try to extract title from filename
+        std::regex title_pattern(R"((.+?)(?:_\d+_\d+)?)");
+        std::smatch match;
+        if (std::regex_match(base_name, match, title_pattern)) {
+            metadata.title = match[1].str();
+        } else {
+            metadata.title = base_name;
+        }
+        
+        // Set default values
+        metadata.author = "";
+        metadata.description = "";
+        metadata.publisher = "";
+        metadata.isbn = "";
+        metadata.language = "en";
+        metadata.page_count = 0;
+        metadata.cover_format = "";
+        
+        // Replace underscores and clean up title
+        std::replace(metadata.title.begin(), metadata.title.end(), '_', ' ');
+        
+    } catch (const std::exception& e) {
+        throw std::runtime_error("EPUB metadata extraction failed: " + std::string(e.what()));
+    }
+    
+    return metadata;
+}
+
+BookMetadata BookManager::extract_pdf_metadata(const std::string& file_path) {
+    BookMetadata metadata;
+    
+    // Basic PDF metadata extraction
+    try {
+        fs::path pdf_path(file_path);
+        std::string base_name = pdf_path.stem().string();
+        
+        // Extract title from filename
+        std::regex title_pattern(R"((.+?)(?:_\d+_\d+)?)");
+        std::smatch match;
+        if (std::regex_match(base_name, match, title_pattern)) {
+            metadata.title = match[1].str();
+        } else {
+            metadata.title = base_name;
+        }
+        
+        // Set default values
+        metadata.author = "";
+        metadata.description = "";
+        metadata.publisher = "";
+        metadata.isbn = "";
+        metadata.language = "en";
+        metadata.page_count = 0;
+        metadata.cover_format = "";
+        
+        // Clean up title
+        std::replace(metadata.title.begin(), metadata.title.end(), '_', ' ');
+        
+    } catch (const std::exception& e) {
+        throw std::runtime_error("PDF metadata extraction failed: " + std::string(e.what()));
+    }
+    
+    return metadata;
+}
+
+BookMetadata BookManager::extract_comic_metadata(const std::string& file_path) {
+    BookMetadata metadata;
+    
+    // Basic comic metadata extraction
+    try {
+        fs::path comic_path(file_path);
+        std::string base_name = comic_path.stem().string();
+        
+        // Extract title from filename
+        std::regex title_pattern(R"((.+?)(?:_\d+_\d+)?)");
+        std::smatch match;
+        if (std::regex_match(base_name, match, title_pattern)) {
+            metadata.title = match[1].str();
+        } else {
+            metadata.title = base_name;
+        }
+        
+        // Set default values
+        metadata.author = "";
+        metadata.description = "";
+        metadata.publisher = "";
+        metadata.isbn = "";
+        metadata.language = "en";
+        metadata.page_count = 0;
+        metadata.cover_format = "";
+        
+        // Clean up title
+        std::replace(metadata.title.begin(), metadata.title.end(), '_', ' ');
+        
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Comic metadata extraction failed: " + std::string(e.what()));
+    }
+    
+    return metadata;
+}
+
+bool BookManager::generate_thumbnail(const std::string& file_path,
+                                   const std::string& file_type,
+                                   const std::vector<unsigned char>& cover_image,
+                                   const std::string& output_path) {
+    try {
+        // For MVP, we'll create a simple placeholder thumbnail
+        // TODO: Implement actual image processing with a library like ImageMagick or STBI
+        
+        // Create a simple text-based thumbnail placeholder
+        std::ofstream thumbnail_file(output_path);
+        if (!thumbnail_file.is_open()) {
+            return false;
+        }
+        
+        // Write a simple SVG placeholder
+        thumbnail_file << R"(<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="300" fill="#f0f0f0" stroke="#ccc" stroke-width="2"/>
+  <text x="100" y="150" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#666">📖</text>
+  <text x="100" y="200" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#888">)" << file_type << R"(</text>
+</svg>)";
+        
+        thumbnail_file.close();
+        return true;
+        
+    } catch (const std::exception& e) {
+        return false;
+    }
 }

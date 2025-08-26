@@ -1,0 +1,36 @@
+{
+  "name": "MyLibrary - Ebook Reader",
+  "short_name": "MyLibrary",
+  "description": "Personal ebook library with offline reading support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["books", "education", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Upload Book",
+      "short_name": "Upload",
+      "description": "Upload a new book to your library",
+      "url": "/?action=upload",
+      "icons": [
+        {
+          "src": "/vite.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "protocol_handlers": [],
+  "prefer_related_applications": false
+}
