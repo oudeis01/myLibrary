@@ -153,6 +153,13 @@ private:
      * @param res HTTP response
      */
     void handle_book_file_access(const httplib::Request& req, httplib::Response& res);
+    
+    /**
+     * @brief Handles requests to access book thumbnails
+     * @param req HTTP request (GET /api/books/{book_id}/thumbnail)
+     * @param res HTTP response
+     */
+    void handle_book_thumbnail(const httplib::Request& req, httplib::Response& res);
 
     /**
      * @brief Handles requests to get individual book details

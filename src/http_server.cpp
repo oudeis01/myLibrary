@@ -83,6 +83,11 @@ void HttpServer::setup_routes() {
         handle_book_file_access(req, res);
     });
     
+    // Thumbnail access endpoint
+    server.Get(R"(/api/books/(\d+)/thumbnail)", [this](const httplib::Request& req, httplib::Response& res) {
+        handle_book_thumbnail(req, res);
+    });
+    
     // Progress tracking endpoints
     server.Put(R"(/api/books/(\d+)/progress)", [this](const httplib::Request& req, httplib::Response& res) {
         handle_update_progress(req, res);
@@ -266,10 +271,18 @@ void HttpServer::handle_book_upload(const httplib::Request& req, httplib::Respon
             book_info.author = req.get_param_value("author");
         }
         
-        // Add book to database
+        // Add book to database with full metadata
         long book_id = database->add_book(book_info.title, book_info.author, 
                                          book_info.file_path, book_info.file_type,
-                                         book_info.file_size);
+                                         book_info.file_size, 
+                                         book_info.metadata.description,
+                                         book_info.metadata.publisher,
+                                         book_info.metadata.isbn,
+                                         book_info.metadata.language,
+                                         book_info.thumbnail_path,
+                                         book_info.metadata.page_count,
+                                         book_info.metadata_extracted,
+                                         book_info.extraction_error);
         
         nlohmann::json response_data;
         response_data["message"] = "Book uploaded successfully";
@@ -538,6 +551,66 @@ bool HttpServer::start() {
     } catch (const std::exception& e) {
         std::cerr << "Failed to start server: " << e.what() << std::endl;
         return false;
+    }
+}
+
+void HttpServer::handle_book_thumbnail(const httplib::Request& req, httplib::Response& res) {
+    try {
+        // Parse book ID from URL
+        long book_id = std::stol(req.matches[1]);
+        
+        // Get book information from database
+        nlohmann::json all_books = database->get_all_books();
+        nlohmann::json book_info;
+        
+        for (const auto& book : all_books) {
+            if (book["id"] == book_id) {
+                book_info = book;
+                break;
+            }
+        }
+        
+        if (book_info.empty()) {
+            send_error(res, 404, "Book not found");
+            return;
+        }
+        
+        // Get thumbnail path from database
+        std::string thumbnail_path;
+        if (book_info.contains("thumbnail_path") && !book_info["thumbnail_path"].is_null()) {
+            thumbnail_path = book_info["thumbnail_path"];
+        }
+        
+        if (thumbnail_path.empty() || !fs::exists(thumbnail_path)) {
+            send_error(res, 404, "Thumbnail not found");
+            return;
+        }
+        
+        // Read thumbnail file
+        std::ifstream file(thumbnail_path, std::ios::binary);
+        if (!file.is_open()) {
+            send_error(res, 500, "Failed to read thumbnail file");
+            return;
+        }
+        
+        std::string content((std::istreambuf_iterator<char>(file)),
+                          std::istreambuf_iterator<char>());
+        file.close();
+        
+        // Determine content type based on file extension
+        std::string content_type = "application/octet-stream";
+        if (thumbnail_path.ends_with(".svg")) {
+            content_type = "image/svg+xml";
+        } else if (thumbnail_path.ends_with(".jpg") || thumbnail_path.ends_with(".jpeg")) {
+            content_type = "image/jpeg";
+        } else if (thumbnail_path.ends_with(".png")) {
+            content_type = "image/png";
+        }
+        
+        res.set_content(content, content_type);
+        
+    } catch (const std::exception& e) {
+        send_error(res, 500, "Failed to get thumbnail: " + std::string(e.what()));
     }
 }
 

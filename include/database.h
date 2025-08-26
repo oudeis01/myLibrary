@@ -79,12 +79,24 @@ public:
      * @param file_path Path to the book file
      * @param file_type Type of book file (epub, pdf, cbz)
      * @param file_size Size of the file in bytes
+     * @param description Book description (optional)
+     * @param publisher Publisher name (optional)
+     * @param isbn ISBN number (optional)
+     * @param language Book language (default: "en")
+     * @param thumbnail_path Path to thumbnail image (optional)
+     * @param page_count Number of pages (optional)
+     * @param metadata_extracted Whether metadata was extracted successfully
+     * @param extraction_error Error message if metadata extraction failed
      * @return Book ID of the newly added book
      * @throws std::runtime_error if book addition fails
      */
     long add_book(const std::string& title, const std::string& author, 
                   const std::string& file_path, const std::string& file_type, 
-                  size_t file_size);
+                  size_t file_size, const std::string& description = "", 
+                  const std::string& publisher = "", const std::string& isbn = "",
+                  const std::string& language = "en", const std::string& thumbnail_path = "",
+                  int page_count = 0, bool metadata_extracted = false,
+                  const std::string& extraction_error = "");
 
     /**
      * @brief Retrieves book ID by file path

@@ -17,6 +17,12 @@ pkg_check_modules(PQXX REQUIRED libpqxx)
 # OpenSSL for secure password hashing
 find_package(OpenSSL REQUIRED)
 
+# minizip for EPUB parsing
+pkg_check_modules(MINIZIP REQUIRED minizip)
+
+# tinyxml2 for XML parsing
+pkg_check_modules(TINYXML2 REQUIRED tinyxml2)
+
 # Threads
 find_package(Threads REQUIRED)
 
@@ -40,12 +46,16 @@ target_include_directories(mylibrary_server PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${PostgreSQL_INCLUDE_DIRS}
     ${PQXX_INCLUDE_DIRS}
+    ${MINIZIP_INCLUDE_DIRS}
+    ${TINYXML2_INCLUDE_DIRS}
 )
 
 # Link libraries - prioritize system libraries
 target_link_libraries(mylibrary_server PRIVATE 
     ${PostgreSQL_LIBRARIES}
     ${PQXX_LIBRARIES}
+    ${MINIZIP_LIBRARIES}
+    ${TINYXML2_LIBRARIES}
     OpenSSL::SSL
     OpenSSL::Crypto
     nlohmann_json::nlohmann_json

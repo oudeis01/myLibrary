@@ -90,14 +90,14 @@ void Database::prepare_statements() {
 
         // Book operations
         conn->prepare("insert_book", 
-            "INSERT INTO books (title, author, file_path, file_type, file_size) "
-            "VALUES ($1, $2, $3, $4, $5) RETURNING id");
+            "INSERT INTO books (title, author, file_path, file_type, file_size, description, publisher, isbn, language, thumbnail_path, page_count, metadata_extracted, extraction_error) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id");
         conn->prepare("get_book_id_by_path", 
             "SELECT id FROM books WHERE file_path = $1");
         conn->prepare("get_book_by_id", 
             "SELECT * FROM books WHERE id = $1");
         conn->prepare("get_all_books", 
-            "SELECT id, title, author, file_path, file_type, file_size, uploaded_at FROM books ORDER BY uploaded_at DESC");
+            "SELECT id, title, author, file_path, file_type, file_size, uploaded_at, thumbnail_path FROM books ORDER BY uploaded_at DESC");
 
         // Progress operations
         conn->prepare("upsert_progress", 
@@ -169,10 +169,17 @@ long Database::get_user_id(const std::string& username) {
 
 long Database::add_book(const std::string& title, const std::string& author, 
                        const std::string& file_path, const std::string& file_type, 
-                       size_t file_size) {
+                       size_t file_size, const std::string& description, 
+                       const std::string& publisher, const std::string& isbn,
+                       const std::string& language, const std::string& thumbnail_path,
+                       int page_count, bool metadata_extracted,
+                       const std::string& extraction_error) {
     try {
         pqxx::work txn(*conn);
-        pqxx::result result = txn.exec_prepared("insert_book", title, author, file_path, file_type, static_cast<long>(file_size));
+        pqxx::result result = txn.exec_prepared("insert_book", 
+            title, author, file_path, file_type, static_cast<long>(file_size),
+            description, publisher, isbn, language, thumbnail_path, 
+            page_count, metadata_extracted, extraction_error);
         txn.commit();
         
         if (!result.empty()) {
@@ -263,6 +270,7 @@ nlohmann::json Database::get_all_books() {
             book["file_type"] = row["file_type"].as<std::string>();
             book["file_size"] = row["file_size"].as<long>();
             book["uploaded_at"] = row["uploaded_at"].as<std::string>();
+            book["thumbnail_path"] = row["thumbnail_path"].is_null() ? "" : row["thumbnail_path"].as<std::string>();
             
             books.push_back(book);
         }

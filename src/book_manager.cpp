@@ -14,6 +14,9 @@
 #include <random>
 #include <algorithm>
 #include <cctype>
+#include <iostream>
+#include <minizip/unzip.h>
+#include <tinyxml2.h>
 
 namespace fs = std::filesystem;
 
@@ -102,14 +105,27 @@ BookInfo BookManager::save_uploaded_book(const std::string& file_content,
             fs::path(original_filename).stem().string() : book_info.metadata.title;
         book_info.author = book_info.metadata.author;
         
-        // Generate thumbnail if we have cover image
+        // Generate thumbnail from extracted cover or create placeholder
+        std::string thumbnail_extension;
         if (!book_info.metadata.cover_image.empty()) {
-            std::string thumbnail_filename = "thumb_" + unique_filename + ".jpg";
-            std::string thumbnail_path = get_thumbnails_directory() + "/" + thumbnail_filename;
-            
-            if (generate_thumbnail(file_path, file_type, book_info.metadata.cover_image, thumbnail_path)) {
-                book_info.thumbnail_path = thumbnail_path;
+            // Use appropriate extension based on cover format
+            if (book_info.metadata.cover_format.find("jpeg") != std::string::npos || 
+                book_info.metadata.cover_format.find("jpg") != std::string::npos) {
+                thumbnail_extension = ".jpg";
+            } else if (book_info.metadata.cover_format.find("png") != std::string::npos) {
+                thumbnail_extension = ".png";
+            } else {
+                thumbnail_extension = ".jpg"; // Default to JPEG
             }
+        } else {
+            thumbnail_extension = ".svg"; // SVG placeholder
+        }
+        
+        std::string thumbnail_filename = "thumb_" + unique_filename + thumbnail_extension;
+        std::string thumbnail_path = get_thumbnails_directory() + "/" + thumbnail_filename;
+        
+        if (generate_thumbnail(file_path, file_type, book_info.metadata.cover_image, thumbnail_path)) {
+            book_info.thumbnail_path = thumbnail_path;
         }
         
         book_info.metadata_extracted = true;
@@ -314,31 +330,46 @@ BookMetadata BookManager::extract_epub_metadata(const std::string& file_path) {
             throw std::runtime_error("Cannot open EPUB file");
         }
         
-        // For MVP, we'll do basic filename parsing
-        // TODO: Implement full EPUB parsing with container.xml and OPF
         fs::path epub_path(file_path);
         std::string base_name = epub_path.stem().string();
         
-        // Try to extract title from filename
-        std::regex title_pattern(R"((.+?)(?:_\d+_\d+)?)");
+        // Extract title from filename as fallback
+        std::string clean_title = base_name;
+        std::regex timestamp_pattern(R"(_\d+_\d+)");
+        clean_title = std::regex_replace(clean_title, timestamp_pattern, "");
+        
+        std::regex series_pattern1(R"((.+?)-(\d+)$)");
         std::smatch match;
-        if (std::regex_match(base_name, match, title_pattern)) {
-            metadata.title = match[1].str();
+        if (std::regex_match(clean_title, match, series_pattern1)) {
+            metadata.title = match[1].str() + " (제" + match[2].str() + "권)";
         } else {
-            metadata.title = base_name;
+            metadata.title = clean_title;
         }
         
-        // Set default values
-        metadata.author = "";
-        metadata.description = "";
-        metadata.publisher = "";
-        metadata.isbn = "";
-        metadata.language = "en";
-        metadata.page_count = 0;
-        metadata.cover_format = "";
+        // Try to extract metadata from EPUB file
+        unzFile epub_file = unzOpen(file_path.c_str());
+        if (epub_file != nullptr) {
+            // Read container.xml to find OPF file location
+            std::string opf_path = extract_opf_path_from_container(epub_file);
+            if (!opf_path.empty()) {
+                extract_metadata_from_opf(epub_file, opf_path, metadata);
+                extract_cover_image_from_epub(epub_file, opf_path, metadata);
+            }
+            unzClose(epub_file);
+        }
         
-        // Replace underscores and clean up title
+        // Set default values for any missing fields
+        if (metadata.author.empty()) metadata.author = "";
+        if (metadata.description.empty()) metadata.description = "";
+        if (metadata.publisher.empty()) metadata.publisher = "";
+        if (metadata.isbn.empty()) metadata.isbn = "";
+        if (metadata.language.empty()) metadata.language = "ko";
+        if (metadata.page_count == 0) metadata.page_count = 0;
+        
+        // Clean up title
         std::replace(metadata.title.begin(), metadata.title.end(), '_', ' ');
+        metadata.title.erase(0, metadata.title.find_first_not_of(" \t"));
+        metadata.title.erase(metadata.title.find_last_not_of(" \t") + 1);
         
     } catch (const std::exception& e) {
         throw std::runtime_error("EPUB metadata extraction failed: " + std::string(e.what()));
@@ -424,27 +455,256 @@ bool BookManager::generate_thumbnail(const std::string& file_path,
                                    const std::vector<unsigned char>& cover_image,
                                    const std::string& output_path) {
     try {
-        // For MVP, we'll create a simple placeholder thumbnail
-        // TODO: Implement actual image processing with a library like ImageMagick or STBI
-        
-        // Create a simple text-based thumbnail placeholder
-        std::ofstream thumbnail_file(output_path);
-        if (!thumbnail_file.is_open()) {
-            return false;
-        }
-        
-        // Write a simple SVG placeholder
-        thumbnail_file << R"(<?xml version="1.0" encoding="UTF-8"?>
+        if (!cover_image.empty()) {
+            // We have actual cover image data - save it as thumbnail
+            std::string extension = fs::path(output_path).extension().string();
+            
+            // Determine output format based on cover format and desired extension  
+            if (extension == ".jpg" || extension == ".jpeg") {
+                // Save as JPEG thumbnail (for now just copy the data)
+                std::ofstream thumbnail_file(output_path, std::ios::binary);
+                if (!thumbnail_file.is_open()) {
+                    return false;
+                }
+                
+                thumbnail_file.write(reinterpret_cast<const char*>(cover_image.data()), cover_image.size());
+                thumbnail_file.close();
+                return true;
+            } else {
+                // Default to copying the image data as-is
+                std::ofstream thumbnail_file(output_path, std::ios::binary);
+                if (!thumbnail_file.is_open()) {
+                    return false;
+                }
+                
+                thumbnail_file.write(reinterpret_cast<const char*>(cover_image.data()), cover_image.size());
+                thumbnail_file.close();
+                return true;
+            }
+        } else {
+            // No cover image - create SVG placeholder
+            std::ofstream thumbnail_file(output_path);
+            if (!thumbnail_file.is_open()) {
+                return false;
+            }
+            
+            // Write a simple SVG placeholder
+            thumbnail_file << R"(<?xml version="1.0" encoding="UTF-8"?>
 <svg width="200" height="300" xmlns="http://www.w3.org/2000/svg">
   <rect width="200" height="300" fill="#f0f0f0" stroke="#ccc" stroke-width="2"/>
   <text x="100" y="150" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#666">📖</text>
   <text x="100" y="200" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#888">)" << file_type << R"(</text>
 </svg>)";
-        
-        thumbnail_file.close();
-        return true;
+            
+            thumbnail_file.close();
+            return true;
+        }
         
     } catch (const std::exception& e) {
         return false;
+    }
+}
+
+// Helper function to extract OPF path from container.xml
+std::string BookManager::extract_opf_path_from_container(unzFile epub_file) {
+    // Look for META-INF/container.xml
+    if (unzLocateFile(epub_file, "META-INF/container.xml", 0) != UNZ_OK) {
+        return "";
+    }
+    
+    if (unzOpenCurrentFile(epub_file) != UNZ_OK) {
+        return "";
+    }
+    
+    // Read container.xml
+    char buffer[8192];
+    int bytes_read = unzReadCurrentFile(epub_file, buffer, sizeof(buffer) - 1);
+    unzCloseCurrentFile(epub_file);
+    
+    if (bytes_read <= 0) {
+        return "";
+    }
+    
+    buffer[bytes_read] = '\0';
+    
+    // Parse XML to find OPF file path
+    tinyxml2::XMLDocument doc;
+    if (doc.Parse(buffer) != tinyxml2::XML_SUCCESS) {
+        return "";
+    }
+    
+    tinyxml2::XMLElement* rootfile = doc.FirstChildElement("container")
+                                       ->FirstChildElement("rootfiles")
+                                       ->FirstChildElement("rootfile");
+    
+    if (rootfile && rootfile->Attribute("full-path")) {
+        return rootfile->Attribute("full-path");
+    }
+    
+    return "";
+}
+
+// Helper function to extract metadata from OPF file
+void BookManager::extract_metadata_from_opf(unzFile epub_file, const std::string& opf_path, BookMetadata& metadata) {
+    if (unzLocateFile(epub_file, opf_path.c_str(), 0) != UNZ_OK) {
+        return;
+    }
+    
+    if (unzOpenCurrentFile(epub_file) != UNZ_OK) {
+        return;
+    }
+    
+    // Read OPF file
+    std::string content;
+    char buffer[8192];
+    int bytes_read;
+    
+    while ((bytes_read = unzReadCurrentFile(epub_file, buffer, sizeof(buffer))) > 0) {
+        content.append(buffer, bytes_read);
+    }
+    
+    unzCloseCurrentFile(epub_file);
+    
+    // Parse OPF XML
+    tinyxml2::XMLDocument doc;
+    if (doc.Parse(content.c_str()) != tinyxml2::XML_SUCCESS) {
+        return;
+    }
+    
+    tinyxml2::XMLElement* package = doc.FirstChildElement("package");
+    if (!package) return;
+    
+    tinyxml2::XMLElement* metadata_elem = package->FirstChildElement("metadata");
+    if (!metadata_elem) return;
+    
+    // Extract title
+    tinyxml2::XMLElement* title = metadata_elem->FirstChildElement("title");
+    if (title && title->GetText()) {
+        metadata.title = title->GetText();
+    }
+    
+    // Extract author
+    tinyxml2::XMLElement* creator = metadata_elem->FirstChildElement("creator");
+    if (creator && creator->GetText()) {
+        metadata.author = creator->GetText();
+    }
+    
+    // Extract description
+    tinyxml2::XMLElement* description = metadata_elem->FirstChildElement("description");
+    if (description && description->GetText()) {
+        metadata.description = description->GetText();
+    }
+    
+    // Extract publisher
+    tinyxml2::XMLElement* publisher = metadata_elem->FirstChildElement("publisher");
+    if (publisher && publisher->GetText()) {
+        metadata.publisher = publisher->GetText();
+    }
+    
+    // Extract language
+    tinyxml2::XMLElement* language = metadata_elem->FirstChildElement("language");
+    if (language && language->GetText()) {
+        metadata.language = language->GetText();
+    }
+}
+
+// Helper function to extract cover image from EPUB
+void BookManager::extract_cover_image_from_epub(unzFile epub_file, const std::string& opf_path, BookMetadata& metadata) {
+    // Find cover image in manifest
+    if (unzLocateFile(epub_file, opf_path.c_str(), 0) != UNZ_OK) {
+        return;
+    }
+    
+    if (unzOpenCurrentFile(epub_file) != UNZ_OK) {
+        return;
+    }
+    
+    std::string content;
+    char buffer[8192];
+    int bytes_read;
+    
+    while ((bytes_read = unzReadCurrentFile(epub_file, buffer, sizeof(buffer))) > 0) {
+        content.append(buffer, bytes_read);
+    }
+    
+    unzCloseCurrentFile(epub_file);
+    
+    tinyxml2::XMLDocument doc;
+    if (doc.Parse(content.c_str()) != tinyxml2::XML_SUCCESS) {
+        return;
+    }
+    
+    // Look for cover in manifest
+    tinyxml2::XMLElement* package = doc.FirstChildElement("package");
+    if (!package) return;
+    
+    tinyxml2::XMLElement* manifest = package->FirstChildElement("manifest");
+    if (!manifest) return;
+    
+    std::string cover_href;
+    std::string cover_media_type;
+    
+    // Look for cover meta tag
+    tinyxml2::XMLElement* metadata_elem = package->FirstChildElement("metadata");
+    if (metadata_elem) {
+        for (tinyxml2::XMLElement* meta = metadata_elem->FirstChildElement("meta"); 
+             meta; meta = meta->NextSiblingElement("meta")) {
+            if (meta->Attribute("name") && 
+                std::string(meta->Attribute("name")) == "cover" && 
+                meta->Attribute("content")) {
+                
+                std::string cover_id = meta->Attribute("content");
+                
+                // Find item with this ID
+                for (tinyxml2::XMLElement* item = manifest->FirstChildElement("item");
+                     item; item = item->NextSiblingElement("item")) {
+                    if (item->Attribute("id") && 
+                        std::string(item->Attribute("id")) == cover_id &&
+                        item->Attribute("href") &&
+                        item->Attribute("media-type")) {
+                        cover_href = item->Attribute("href");
+                        cover_media_type = item->Attribute("media-type");
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    
+    if (cover_href.empty()) {
+        // Fallback: look for common cover file names
+        std::vector<std::string> cover_names = {"cover.jpg", "cover.png", "cover.jpeg", "Cover.jpg", "Cover.png"};
+        for (const auto& name : cover_names) {
+            if (unzLocateFile(epub_file, name.c_str(), 0) == UNZ_OK) {
+                cover_href = name;
+                cover_media_type = name.ends_with(".png") ? "image/png" : "image/jpeg";
+                break;
+            }
+        }
+    }
+    
+    if (!cover_href.empty()) {
+        // Calculate relative path from OPF directory
+        fs::path opf_dir = fs::path(opf_path).parent_path();
+        std::string full_cover_path = (opf_dir / cover_href).string();
+        
+        // Extract cover image data
+        if (unzLocateFile(epub_file, full_cover_path.c_str(), 0) == UNZ_OK) {
+            if (unzOpenCurrentFile(epub_file) == UNZ_OK) {
+                std::vector<unsigned char> image_data;
+                char buffer[4096];
+                int bytes_read;
+                
+                while ((bytes_read = unzReadCurrentFile(epub_file, buffer, sizeof(buffer))) > 0) {
+                    image_data.insert(image_data.end(), buffer, buffer + bytes_read);
+                }
+                
+                unzCloseCurrentFile(epub_file);
+                
+                metadata.cover_image = std::move(image_data);
+                metadata.cover_format = cover_media_type;
+            }
+        }
     }
 }

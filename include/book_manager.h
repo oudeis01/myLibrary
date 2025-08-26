@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include <minizip/unzip.h>
 
 /**
  * @struct BookMetadata
@@ -173,6 +174,29 @@ public:
      * @brief Ensures thumbnails directory exists
      */
     void ensure_thumbnails_directory_exists();
+
+    /**
+     * @brief Extracts OPF file path from EPUB container.xml
+     * @param epub_file Opened EPUB file handle
+     * @return Path to OPF file, empty string if not found
+     */
+    static std::string extract_opf_path_from_container(unzFile epub_file);
+
+    /**
+     * @brief Extracts metadata from EPUB OPF file
+     * @param epub_file Opened EPUB file handle  
+     * @param opf_path Path to OPF file within EPUB
+     * @param metadata Reference to metadata structure to fill
+     */
+    static void extract_metadata_from_opf(unzFile epub_file, const std::string& opf_path, BookMetadata& metadata);
+
+    /**
+     * @brief Extracts cover image from EPUB file
+     * @param epub_file Opened EPUB file handle
+     * @param opf_path Path to OPF file within EPUB  
+     * @param metadata Reference to metadata structure to fill with cover data
+     */
+    static void extract_cover_image_from_epub(unzFile epub_file, const std::string& opf_path, BookMetadata& metadata);
 
 private:
     std::string thumbnails_directory; ///< Directory where thumbnails are stored
