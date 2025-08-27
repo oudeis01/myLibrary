@@ -40,8 +40,60 @@ graph TD
 ## 기술 스택
 
 -   **백엔드:** C++17, PostgreSQL
--   **프론트엔드:** Vite, TypeScript
+-   **프론트엔드:** Vite, TypeScript (모듈화된 바닐라 JS 아키텍처)
 -   **주요 백엔드 라이브러리:** httplib (웹 서버), pqxx (PostgreSQL 클라이언트)
+
+## 프론트엔드 아키텍처
+
+### 모듈화 결정 (2025-08-27)
+
+2,097줄의 `main.ts` 파일을 React 도입 대신 바닐라 JS 모듈화로 리팩토링했습니다.
+
+### 분석
+
+| 요소 | React | 바닐라 JS | 근거 |
+|------|-------|-----------|------|
+| 번들 크기 | +172KB | 현재 크기 유지 | PWA 로딩 성능 |
+| PWA 연동 | 복잡함 | 직접 제어 | Service Worker/IndexedDB 접근 |
+| 메모리 사용 | 높은 오버헤드 | 최소한 | 대용량 파일 처리 |
+| 개발 속도 | 프레임워크 설정 | 직접 구현 | 빠른 반복 개발 |
+
+### 아키텍처
+
+```
+src/lib/
+├── core/
+│   ├── BaseComponent.ts   # 컴포넌트 기본 클래스
+│   ├── Router.ts          # SPA 라우팅
+│   └── EventBus.ts        # 컴포넌트 간 통신
+├── pages/
+│   ├── AuthPage.ts        # 인증 페이지
+│   ├── LibraryPage.ts     # 메인 라이브러리
+│   └── AdminPage.ts       # 관리자 페이지 (모니터링 포함)
+└── components/            # 공유 컴포넌트
+```
+
+### 구현
+
+**BaseComponent 클래스**
+```typescript
+abstract class BaseComponent<T extends ComponentState = ComponentState> {
+  abstract render(): string;
+  abstract bindEvents(): void;
+  
+  mount(container: HTMLElement): void;
+  setState(newState: Partial<T>): void;
+  addEventListener(): void;
+}
+```
+
+**결과**
+- 코드: 2,097줄 → 73줄
+- HTML 템플릿: 22개 인라인 → 메서드 기반 렌더링
+- 이벤트 리스너: 20개 분산 → 중앙화된 EventBus
+- 관리자 모니터링: 단일 페이지 내 통합
+
+모듈 아키텍처는 PWA 최적화를 유지하면서 코드 구성과 유지보수성을 개선했습니다.
 
 ## 시스템 종속성
 

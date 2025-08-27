@@ -41,8 +41,60 @@ A self-hosted digital library server featuring a high-performance C++ backend an
 ## Tech Stack
 
 -   **Backend:** C++17, PostgreSQL
--   **Frontend:** Vite, TypeScript
+-   **Frontend:** Vite, TypeScript (Modular Vanilla JS Architecture)
 -   **Key Backend Libraries:** httplib (Web Server), pqxx (PostgreSQL client)
+
+## Frontend Architecture
+
+### Modularization Decision (2025-08-27)
+
+The 2,097-line `main.ts` file was refactored using vanilla JS modularization instead of React integration.
+
+### Analysis
+
+| Aspect | React | Vanilla JS | Rationale |
+|--------|-------|------------|-----------|
+| Bundle Size | +172KB | Current size | PWA loading performance |
+| PWA Integration | Complex | Direct control | Service Worker/IndexedDB access |
+| Memory Usage | Higher overhead | Minimal | Large file processing |
+| Development | Framework setup | Direct implementation | Faster iteration |
+
+### Architecture
+
+```
+src/lib/
+├── core/
+│   ├── BaseComponent.ts   # Component base class
+│   ├── Router.ts          # SPA routing
+│   └── EventBus.ts        # Inter-component communication
+├── pages/
+│   ├── AuthPage.ts        # Authentication
+│   ├── LibraryPage.ts     # Main library
+│   └── AdminPage.ts       # Admin with monitoring
+└── components/            # Shared components
+```
+
+### Implementation
+
+**BaseComponent Class**
+```typescript
+abstract class BaseComponent<T extends ComponentState = ComponentState> {
+  abstract render(): string;
+  abstract bindEvents(): void;
+  
+  mount(container: HTMLElement): void;
+  setState(newState: Partial<T>): void;
+  addEventListener(): void;
+}
+```
+
+**Results**
+- Code: 2,097 lines → 73 lines
+- HTML templates: 22 inline → method-based rendering
+- Event listeners: 20 scattered → centralized EventBus
+- Admin monitoring: integrated within single page
+
+The modular architecture maintains PWA optimization while improving code organization and maintainability.
 
 ## System Dependencies
 

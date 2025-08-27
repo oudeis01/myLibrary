@@ -77,6 +77,13 @@ public:
                                const std::string& content_type);
 
     /**
+     * @brief Adds an existing book file from filesystem to the library
+     * @param file_path Full path to the existing book file
+     * @return true if book was successfully added, false otherwise
+     */
+    bool add_book_from_path(const std::string& file_path);
+
+    /**
      * @brief Validates if a file type is supported
      * @param file_extension File extension (e.g., ".epub", ".pdf")
      * @return true if file type is supported, false otherwise

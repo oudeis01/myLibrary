@@ -712,3 +712,45 @@ void BookManager::extract_cover_image_from_epub(unzFile epub_file, const std::st
 const std::string& BookManager::get_books_directory() const {
     return books_directory;
 }
+
+bool BookManager::add_book_from_path(const std::string& file_path) {
+    try {
+        // Check if file exists
+        if (!fs::exists(file_path)) {
+            std::cout << "BookManager: file does not exist: " << file_path << std::endl;
+            return false;
+        }
+        
+        // Get file extension and validate format
+        std::string extension = fs::path(file_path).extension().string();
+        if (!is_supported_format(extension)) {
+            std::cout << "BookManager: unsupported file format: " << extension << std::endl;
+            return false;
+        }
+        
+        // Extract file type
+        std::string file_type = get_file_type(file_path);
+        
+        // Extract metadata
+        nlohmann::json metadata = extract_metadata(file_path, file_type);
+        
+        // Create a BookInfo structure for database addition
+        BookInfo book_info;
+        book_info.title = metadata.value("title", fs::path(file_path).stem().string());
+        book_info.author = metadata.value("author", "Unknown Author");
+        book_info.file_type = file_type;
+        book_info.file_size = fs::file_size(file_path);
+        book_info.file_path = file_path;
+        book_info.thumbnail_path = ""; // Will be generated later if needed
+        book_info.metadata_extracted = true;
+        
+        std::cout << "BookManager: successfully processed book from path: " << file_path << std::endl;
+        std::cout << "BookManager: title=" << book_info.title << ", author=" << book_info.author << std::endl;
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        std::cout << "BookManager: error adding book from path " << file_path << ": " << e.what() << std::endl;
+        return false;
+    }
+}

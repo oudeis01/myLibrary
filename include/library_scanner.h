@@ -30,7 +30,8 @@ struct ScanStatus {
     std::string current_book = "";
     int total_books = 0;
     int processed_books = 0;
-    int orphaned_cleaned = 0;  // NEW: 정리된 고아 레코드 수
+    int orphaned_cleaned = 0;  // 정리된 고아 레코드 수
+    int books_found = 0;       // NEW: 새로 발견된 도서 수
     std::vector<std::string> errors;
     std::chrono::system_clock::time_point start_time;
 };
@@ -47,7 +48,8 @@ private:
     std::atomic<int> current_progress{0};
     std::atomic<int> total_books{0};
     std::atomic<int> processed_books{0};
-    std::atomic<int> orphaned_cleaned{0};  // NEW: 정리된 고아 레코드 카운터
+    std::atomic<int> orphaned_cleaned{0};  // 정리된 고아 레코드 카운터
+    std::atomic<int> books_found{0};       // NEW: 새로 발견된 도서 카운터
     std::string current_book_name;
     std::vector<std::string> error_log;
     mutable std::mutex progress_mutex;

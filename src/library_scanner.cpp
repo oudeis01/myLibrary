@@ -50,6 +50,7 @@ bool LibraryScanner::start_sync_scan(const std::string& books_directory, bool cl
     total_books.store(0);
     processed_books.store(0);
     orphaned_cleaned.store(0);
+    books_found.store(0);
     error_log.clear();
     scan_start_time = std::chrono::system_clock::now();
     
@@ -141,10 +142,33 @@ void LibraryScanner::scan_worker(const std::string& books_directory, bool cleanu
                 // Check if book already exists in database
                 long existing_book_id = database->get_book_id(book_path);
                 if (existing_book_id == -1) {
-                    // New book found but not in database
-                    // Note: This scanner focuses on cleanup, not adding new books
-                    std::cout << "LibraryScanner: found new book not in database: " << book_path << std::endl;
-                    std::cout << "LibraryScanner: (new book addition should be done via upload API)" << std::endl;
+                    // New book found - add it to database
+                    std::cout << "LibraryScanner: found new book, adding to database: " << book_path << std::endl;
+                    
+                    try {
+                        // Extract basic metadata using BookManager
+                        std::string file_type = book_manager->get_file_type(book_path);
+                        auto metadata = book_manager->extract_metadata(book_path, file_type);
+                        
+                        // Get file info
+                        auto file_size = std::filesystem::file_size(book_path);
+                        std::string title = metadata.value("title", std::filesystem::path(book_path).stem().string());
+                        std::string author = metadata.value("author", "Unknown Author");
+                        
+                        // Add to database
+                        long book_id = database->add_book(book_path, title, author, file_type, file_size);
+                        if (book_id > 0) {
+                            books_found.fetch_add(1);
+                            std::cout << "LibraryScanner: successfully added new book (ID: " << book_id << "): " << book_path << std::endl;
+                        } else {
+                            std::cout << "LibraryScanner: failed to add book to database: " << book_path << std::endl;
+                        }
+                    } catch (const std::exception& e) {
+                        std::string error_msg = "Error adding book " + book_path + ": " + e.what();
+                        std::cout << "LibraryScanner: " << error_msg << std::endl;
+                        std::lock_guard<std::mutex> error_lock(progress_mutex);
+                        error_log.push_back(error_msg);
+                    }
                 } else {
                     // Book already exists - this is expected
                     std::cout << "LibraryScanner: verified existing book: " << book_path << std::endl;
@@ -201,6 +225,7 @@ ScanStatus LibraryScanner::get_status() const {
     status.processed_books = processed_books.load();
     status.total_books = total_books.load();
     status.orphaned_cleaned = orphaned_cleaned.load();
+    status.books_found = books_found.load();
     status.current_book = current_book_name;
     status.errors = error_log;
     status.start_time = scan_start_time;
