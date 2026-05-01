@@ -76,8 +76,18 @@ RUST_LOG=debug
 책 파일과 썸네일을 저장할 디렉토리가 필요합니다.
 
 ```bash
+# ebook-server/ 루트에서 실행
 mkdir -p data/books data/thumbs
 ```
+
+> **중요**: `.env`의 `BOOKS_PATH` / `THUMBS_PATH`는 **절대경로**로 설정하세요.
+> 상대경로(`./data/...`)를 쓰면 `cargo run`을 실행한 디렉토리(`backend/`)를 기준으로 해석되어
+> `ebook-server/data/thumbs/`가 아닌 `ebook-server/backend/data/thumbs/`에 파일이 생성됩니다.
+>
+> ```dotenv
+> BOOKS_PATH=/절대경로/ebook-server/data/books
+> THUMBS_PATH=/절대경로/ebook-server/data/thumbs
+> ```
 
 ---
 
