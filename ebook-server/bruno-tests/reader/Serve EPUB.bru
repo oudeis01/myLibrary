@@ -1,0 +1,18 @@
+meta {
+  name: Serve EPUB
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/reader/{{bookId}}/epub
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+docs {
+  Serve the EPUB file for the in-browser reader. Only works for books with format=epub.
+}

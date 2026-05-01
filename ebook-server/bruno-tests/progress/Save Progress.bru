@@ -1,0 +1,44 @@
+meta {
+  name: Save Progress
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/api/progress/{{bookId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "page": 42,
+    "cfi": "epubcfi(/6/4[chap01]!/4/2/1:0)",
+    "percent": 0.75
+  }
+}
+
+tests {
+  test("should return 204", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
+
+docs {
+  Save or update reading progress. Uses UPSERT (create or update).
+
+  Body fields:
+  - `page` (required, i32) - current page number
+  - `cfi` (optional, string) - EPUB CFI location
+  - `percent` (required, f64) - reading percentage (0.0 - 1.0)
+
+  Returns 204 No Content on success.
+}

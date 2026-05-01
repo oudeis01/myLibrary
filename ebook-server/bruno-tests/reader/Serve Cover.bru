@@ -1,0 +1,18 @@
+meta {
+  name: Serve Cover
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/reader/{{bookId}}/cover
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+docs {
+  Get the book cover image. Bruno can preview image responses directly.
+}

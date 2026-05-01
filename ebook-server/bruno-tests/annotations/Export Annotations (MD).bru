@@ -1,0 +1,29 @@
+meta {
+  name: Export Annotations (MD)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/books/{{bookId}}/annotations/export?format=md
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Export all annotations as a Markdown file.
+  Response: text/markdown with Content-Disposition attachment.
+
+  Query params:
+  - `format` - "md" (Markdown) or "json" (default)
+}

@@ -1,0 +1,39 @@
+meta {
+  name: Update Annotation
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/annotations/{{annotationId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "note": "수정된 노트 내용"
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("should return updated note", function() {
+    expect(res.getBody().note).to.equal("수정된 노트 내용");
+  });
+}
+
+docs {
+  Update the note of an existing annotation (owner only).
+  Set `annotationId` in environment before running.
+}

@@ -1,0 +1,20 @@
+meta {
+  name: Get Progress
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/progress/{{bookId}}
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+docs {
+  Get reading progress for a book. Returns 404 if no progress saved yet.
+
+  Response: `{ "user_id": "...", "book_id": "...", "page": 42, "cfi": "...", "percent": 0.75, "updated_at": "..." }`
+}

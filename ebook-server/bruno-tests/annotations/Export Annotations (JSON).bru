@@ -1,0 +1,26 @@
+meta {
+  name: Export Annotations (JSON)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/books/{{bookId}}/annotations/export?format=json
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Export all annotations as a JSON file.
+  Response: application/json with Content-Disposition attachment.
+}

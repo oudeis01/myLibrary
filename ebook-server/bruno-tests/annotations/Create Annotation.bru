@@ -1,0 +1,59 @@
+meta {
+  name: Create Annotation
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/books/{{bookId}}/annotations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "kind": "highlight",
+    "color": "yellow",
+    "page": 5,
+    "text_content": "선택된 텍스트 예시",
+    "position": {
+      "rects": [
+        { "x": 72.0, "y": 680.0, "width": 400.0, "height": 14.0 }
+      ]
+    },
+    "note": null
+  }
+}
+
+tests {
+  test("should return 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("should return annotation with id", function() {
+    expect(res.getBody()).to.have.property('id');
+    expect(res.getBody().kind).to.equal('highlight');
+  });
+}
+
+docs {
+  Create a new annotation (highlight or note).
+
+  Body fields:
+  - `kind` (required) - "highlight" or "note"
+  - `color` (optional) - "yellow", "green", or "blue"
+  - `page` (optional, i32) - PDF page number
+  - `cfi_range` (optional, string) - EPUB CFI range
+  - `position` (optional, object) - PDF: { rects: [{x,y,width,height}] }
+  - `text_content` (optional, string) - selected text
+  - `note` (optional, string) - user note
+
+  Returns 201 Created with the created annotation.
+}

@@ -1,0 +1,53 @@
+meta {
+  name: Create Library
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/libraries
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "name": "My Books",
+    "path": "../data/books"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (res.getStatus() === 201 && body.id) {
+    bru.setEnvVar("libraryId", body.id);
+  }
+}
+
+tests {
+  test("should return 201 and created library", function() {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.have.property("id");
+    expect(body).to.have.property("name");
+    expect(body).to.have.property("path");
+  });
+}
+
+docs {
+  Create a new library. Requires admin role.
+
+  The `path` is relative to the backend directory (where `cargo run` is executed). If running from `ebook-server/backend/`, use `../data/books`.
+
+  Response: `{ "id": "uuid", "name": "...", "path": "...", "created_at": "..." }`
+
+  The returned `id` is automatically saved to the `libraryId` environment variable.
+}

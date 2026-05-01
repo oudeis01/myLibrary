@@ -1,0 +1,44 @@
+meta {
+  name: Create Bookmark
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/books/{{bookId}}/bookmarks
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "page": 42,
+    "label": "중요한 장면"
+  }
+}
+
+tests {
+  test("should return 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("should return bookmark with id", function() {
+    expect(res.getBody()).to.have.property('id');
+    expect(res.getBody().page).to.equal(42);
+  });
+}
+
+docs {
+  Create a bookmark at the specified page.
+
+  Body fields:
+  - `page` (required, i32) - page number to bookmark
+  - `label` (optional, string) - display label for the bookmark
+}

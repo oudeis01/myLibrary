@@ -1,0 +1,44 @@
+meta {
+  name: List Books
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/books
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+params:query {
+  limit: 50
+  offset: 0
+  ~library_id: {{libraryId}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (res.getStatus() === 200 && Array.isArray(body) && body.length > 0) {
+    bru.setEnvVar("bookId", body[0].id);
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  List all books. Optional query parameters:
+  - `library_id` - filter by library (enabled with {{libraryId}})
+  - `format` - filter by format (pdf, epub, cbz)
+  - `q` - search by title
+  - `limit` - max results (default 50, max 200)
+  - `offset` - pagination offset
+
+  The first book's `id` is saved to `bookId` environment variable.
+}

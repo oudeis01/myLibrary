@@ -1,0 +1,28 @@
+meta {
+  name: List Bookmarks
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/books/{{bookId}}/bookmarks
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("should return array", function() {
+    expect(res.getBody()).to.be.an('array');
+  });
+}
+
+docs {
+  List all bookmarks for a book (current user only), ordered by page ASC.
+}

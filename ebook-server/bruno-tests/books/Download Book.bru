@@ -1,0 +1,20 @@
+meta {
+  name: Download Book
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/books/{{bookId}}/download
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+docs {
+  Download the book file (PDF, EPUB, or CBZ). Bruno will display the raw binary response.
+
+  Tip: Use "Save Response" button in Bruno to save the file to disk.
+}

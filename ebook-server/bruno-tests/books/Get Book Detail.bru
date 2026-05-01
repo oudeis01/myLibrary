@@ -1,0 +1,24 @@
+meta {
+  name: Get Book Detail
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/books/{{bookId}}
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("should return book details", function() {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.have.property("id");
+    expect(body).to.have.property("title");
+    expect(body).to.have.property("format");
+  });
+}

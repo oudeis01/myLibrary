@@ -1,0 +1,26 @@
+meta {
+  name: Delete Annotation
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/annotations/{{annotationId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("should return 204", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
+
+docs {
+  Delete an annotation by ID. Only the owner or admin can delete.
+  Set `annotationId` in environment before running.
+}

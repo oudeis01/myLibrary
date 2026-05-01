@@ -1,0 +1,38 @@
+meta {
+  name: Update Library
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/libraries/{{libraryId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "name": "My Updated Books",
+    "path": "../data/books"
+  }
+}
+
+tests {
+  test("should return updated library", function() {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body.name).to.equal("My Updated Books");
+  });
+}
+
+docs {
+  Update library name and path. Requires admin role.
+}

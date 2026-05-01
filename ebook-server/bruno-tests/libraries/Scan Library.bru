@@ -1,0 +1,29 @@
+meta {
+  name: Scan Library
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/libraries/{{libraryId}}/scan
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("should return 202", function() {
+    expect(res.getStatus()).to.equal(202);
+  });
+}
+
+docs {
+  Trigger a background scan for the library. Requires admin role.
+
+  The scan runs asynchronously - check server logs for results:
+  `INFO scan complete library_id=... added=N skipped=0`
+
+  After scanning, use "List Books" to see the discovered books.
+}
