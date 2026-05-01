@@ -1,3 +1,4 @@
+pub mod guards;
 pub mod middleware;
 
 use jsonwebtoken::{encode, EncodingKey, Header};

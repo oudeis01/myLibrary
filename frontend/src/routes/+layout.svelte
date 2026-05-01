@@ -2,29 +2,53 @@
   import '../app.css';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { isAuthenticated } from '$lib/stores/auth';
+  import { accessToken, isAuthenticated, currentUser } from '$lib/stores/auth';
   import { isOffline, initOfflineStore } from '$lib/stores/offline';
+  import { refresh } from '$lib/api/auth';
+  import { getMe } from '$lib/api/users';
+  import { logout } from '$lib/api/auth';
   import { onMount } from 'svelte';
   import '$lib/offline/sync';
 
   const PUBLIC_ROUTES = ['/login'];
 
   onMount(async () => {
-    // Service Worker 등록 (vite-plugin-pwa injectManifest 전략은 직접 등록 필요)
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
     }
 
     if (!$isAuthenticated && !PUBLIC_ROUTES.includes($page.url.pathname)) {
-      goto('/login');
-      return;
+      // Try silent refresh via httpOnly cookie before redirecting to login
+      const token = await refresh();
+      if (!token) {
+        goto('/login');
+        return;
+      }
+      accessToken.set(token);
     }
+
     if ($isAuthenticated) {
       await initOfflineStore();
+      try {
+        const me = await getMe();
+        currentUser.set(me);
+      } catch {
+        // ignore — non-critical
+      }
     }
   });
 
-  $: if (typeof window !== 'undefined' && !$isAuthenticated && !PUBLIC_ROUTES.includes($page.url.pathname)) {
+  $: if (
+    typeof window !== 'undefined' &&
+    !$isAuthenticated &&
+    !PUBLIC_ROUTES.includes($page.url.pathname)
+  ) {
+    goto('/login');
+  }
+
+  async function handleLogout() {
+    await logout();
+    accessToken.set(null);
     goto('/login');
   }
 </script>
@@ -33,6 +57,24 @@
   <div class="flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-xs font-medium text-amber-900">
     <span>⚡</span>
     <span>오프라인 모드 — 저장된 책만 읽을 수 있습니다</span>
+  </div>
+{/if}
+
+{#if $isAuthenticated && $currentUser}
+  <div class="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2 text-sm">
+    <nav class="flex items-center gap-4">
+      <a href="/library" class="font-semibold text-indigo-600 hover:text-indigo-800">MyLibrary</a>
+      <a href="/offline" class="text-gray-500 hover:text-gray-700">오프라인</a>
+      {#if $currentUser.role === 'admin'}
+        <a href="/admin" class="text-gray-500 hover:text-gray-700">관리</a>
+      {/if}
+    </nav>
+    <div class="flex items-center gap-3 text-gray-500">
+      <span>{$currentUser.username}
+        {#if $currentUser.role === 'admin'}<span class="ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-700">admin</span>{/if}
+      </span>
+      <button on:click={handleLogout} class="hover:text-gray-900">로그아웃</button>
+    </div>
   </div>
 {/if}
 

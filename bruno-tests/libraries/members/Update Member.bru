@@ -1,0 +1,30 @@
+meta {
+  name: Update Member
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/libraries/{{libraryId}}/members/{{userId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "can_upload": true
+  }
+}
+
+tests {
+  test("status 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("can_upload now true", function() {
+    expect(res.getBody().can_upload).to.equal(true);
+  });
+}

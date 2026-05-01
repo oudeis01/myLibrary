@@ -1,0 +1,32 @@
+meta {
+  name: Add Member
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/libraries/{{libraryId}}/members
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "user_id": "{{userId}}",
+    "can_read": true,
+    "can_upload": false
+  }
+}
+
+tests {
+  test("status 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("can_read true", function() {
+    expect(res.getBody().can_read).to.equal(true);
+  });
+}

@@ -1,0 +1,41 @@
+meta {
+  name: Create User
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "username": "testuser",
+    "password": "testpassword123",
+    "role": "member"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("userId", res.getBody().id);
+  }
+}
+
+tests {
+  test("status 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("has id", function() {
+    expect(res.getBody()).to.have.property("id");
+  });
+  test("role is member", function() {
+    expect(res.getBody().role).to.equal("member");
+  });
+}
