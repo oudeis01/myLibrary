@@ -1527,44 +1527,44 @@ CI 구성: PR마다 `cargo test` 전체 실행. E2E, 성능, 보안 스캔은 ma
 
 ## 15. 개발 로드맵
 
-### Phase 0 — 기반 세팅 (1~2주)
+### Phase 0 — 기반 세팅 ✅ 완료
 
-- [ ] Rust 프로젝트 초기화, Axum 기본 설정
-- [ ] PostgreSQL + sqlx 마이그레이션 파이프라인
-- [ ] SvelteKit + Tailwind + vite-plugin-pwa 초기화
-- [ ] Docker Compose 전체 스택 (nginx + backend + postgres)
-- [ ] GitHub Actions CI (build + `cargo test`)
+- [x] Rust 프로젝트 초기화, Axum 기본 설정
+- [x] PostgreSQL + sqlx 마이그레이션 파이프라인
+- [x] SvelteKit + Tailwind + vite-plugin-pwa 초기화
+- [x] Docker Compose 전체 스택 (nginx + backend + postgres)
+- [x] GitHub Actions CI (build + `cargo test`)
 
-### Phase 1 — 코어 MVP (3~4주)
+### Phase 1 — 코어 MVP ✅ 완료
 
-- [ ] 포맷 감지: 매직 바이트 + ZIP 내부 구조 판별
-- [ ] 파일 파서: PDF, EPUB, CBZ
-- [ ] 라이브러리 스캐너
-- [ ] REST API: 라이브러리·책 CRUD
-- [ ] JWT 인증 (단일 관리자로 시작)
-- [ ] 프론트: 라이브러리 그리드, 책 상세 (반응형)
-- [ ] PDF 리더 (pdf.js, 텍스트 레이어)
-- [ ] EPUB 리더 (epub.js)
-- [ ] CBZ 리더 (zip.js + 이미지)
+- [x] 포맷 감지: 매직 바이트 + ZIP 내부 구조 판별
+- [x] 파일 파서: PDF, EPUB, CBZ
+- [x] 라이브러리 스캐너
+- [x] REST API: 라이브러리·책 CRUD
+- [x] JWT 인증 (단일 관리자로 시작)
+- [x] 프론트: 라이브러리 그리드, 책 상세 (반응형)
+- [x] PDF 리더 (pdf.js, 텍스트 레이어)
+- [x] EPUB 리더 (epub.js)
+- [x] CBZ 리더 (zip.js + 이미지)
 
-### Phase 2 — 오프라인 + PWA (2주)
+### Phase 2 — 오프라인 + PWA ✅ 완료 (모바일 점검 제외)
 
-- [ ] Service Worker: App Shell 캐싱
-- [ ] 오프라인 다운로드 (IndexedDB)
-- [ ] 읽기 진행도 오프라인 저장
-- [ ] 온라인 복귀 동기화
-- [ ] PWA manifest, 아이콘, 설치 프롬프트
+- [x] Service Worker: App Shell 캐싱 + API NetworkFirst 전략
+- [x] 오프라인 다운로드 (IndexedDB — `idb` 라이브러리)
+- [x] 읽기 진행도 오프라인 저장
+- [x] 온라인 복귀 동기화 (진행도만)
+- [x] PWA manifest, 아이콘, 설치 프롬프트
 - [ ] 모바일 레이아웃 최종 점검
 
-### Phase 3 — 어노테이션 · 북마크 (2~3주)
+### Phase 3 — 어노테이션 · 북마크 ✅ 완료 (오프라인 sync 제외)
 
-- [ ] 어노테이션 DB + API (PDF · EPUB)
-- [ ] 북마크 DB + API (전 포맷)
-- [ ] PDF 어노테이션 오버레이 (SVG)
-- [ ] EPUB 어노테이션 (CFI 기반)
-- [ ] CBZ 북마크 패널 UI
-- [ ] 어노테이션 내보내기 (JSON, Markdown)
-- [ ] 오프라인 어노테이션 · 북마크 동기화
+- [x] 어노테이션 DB + API (PDF · EPUB) — CRUD + JSON/Markdown 내보내기
+- [x] 북마크 DB + API (전 포맷)
+- [x] PDF 어노테이션 오버레이 (SVG, `convertToPdfPoint` 좌표 변환)
+- [x] EPUB 어노테이션 (CFI 기반, epub.js `rendition.annotations.highlight`)
+- [x] CBZ 북마크 패널 UI
+- [x] 어노테이션 내보내기 (JSON, Markdown)
+- [ ] 오프라인 어노테이션 · 북마크 동기화 — Phase 2 sync.ts는 진행도만 처리, 추후 보완
 
 ### Phase 4 — 멀티유저 (2주)
 
@@ -1595,12 +1595,58 @@ CI 구성: PR마다 `cargo test` 전체 실행. E2E, 성능, 보안 스캔은 ma
 |---|---|---|---|
 | 중복 파일 업로드 | 409 에러 | 덮어쓰기 허용 | |
 | 로그인 연속 실패 | 429 Rate Limit | 계정 잠금 | |
-| Admin이 타인 어노테이션 조회 | 가능 | 불가 | |
+| Admin이 타인 어노테이션 조회 | 가능 | 불가 | 현재: 본인 것만 |
 | 오프라인 어노테이션 충돌 | 최신 타임스탬프 우선 | 수동 해결 UI | |
 | 외부 메타데이터 조회 | Google Books API 연동 | 수동 편집만 | API 키 관리 부담 |
 | TLS 종료 | nginx 직접 처리 | 앞단 Caddy/Traefik | 환경에 따라 |
-| CBZ ComicInfo.xml 없을 때 | 파일명에서 제목 추출 | 빈 메타데이터 | |
+| CBZ ComicInfo.xml 없을 때 | 파일명에서 제목 추출 | 빈 메타데이터 | 현재: 빈 메타데이터 |
 
 ---
 
-*블루프린트 v2 — 개발 진행에 따라 지속 업데이트.*
+## 17. 실제 구현 노트 (블루프린트 대비 변경사항)
+
+블루프린트 설계와 실제 구현 사이에 생긴 차이를 기록한다.
+
+### 프론트엔드 패키지 매니저
+
+`npm` → **`bun`** 으로 변경. 락파일은 `bun.lock`.
+
+### Service Worker 파일명
+
+SvelteKit이 `src/service-worker.ts` 패턴을 자동 감지해 이중 등록 충돌이 발생함.  
+`src/sw.ts` 로 이름을 변경하고 `vite.config.ts`에서 `filename: 'sw.ts'` 지정.  
+등록 코드는 `+layout.svelte` `onMount`에서 `navigator.serviceWorker.register('/sw.js')` 직접 호출.
+
+### API 경로 차이
+
+| 블루프린트 | 실제 구현 | 비고 |
+|---|---|---|
+| `GET/PUT /api/books/:id/progress` | `GET/PUT /api/progress/:book_id` | 리소스 분리 |
+| `GET /api/books/:id/pages/:n` | 미구현 | pdf.js 클라이언트 렌더링으로 대체 |
+| `GET /api/books/:id/cover` | `GET /api/reader/:id/cover` | reader 라우터로 통합 |
+| `GET /api/books/:id/epub` | `GET /api/reader/:id/epub` | reader 라우터로 통합 |
+
+### JWT 미들웨어
+
+블루프린트는 `JwtSecret` extension을 request에 주입하는 방식을 제안했으나,  
+실제 구현에서 extension 삽입 코드가 누락되어 항상 401 반환하는 버그가 있었음.  
+**수정**: `AppState::from_ref(state)`로 AppState에서 직접 `jwt_secret` 읽도록 변경.
+
+### BOOKS_PATH / THUMBS_PATH 절대경로
+
+`cargo run`을 `backend/` 디렉토리에서 실행하면 상대경로 `./data/thumbs`가  
+`ebook-server/backend/data/thumbs`로 해석됨. `.env`에서 **절대경로** 사용 권장.
+
+### Bruno API 테스트
+
+`ebook-server/bruno-tests/` 에 Bruno 컬렉션 추가 (블루프린트 미기재).  
+엔드포인트 추가 시 동시에 업데이트.
+
+### PDF 커버 추출
+
+`lopdf`는 렌더링 불가. `pdfium-render`는 네이티브 `.so` 의존성으로 Docker 복잡도 증가.  
+**MVP 결정**: PDF `cover_path = null` (썸네일 없음). EPUB·CBZ는 정상 생성.
+
+---
+
+*블루프린트 v3 — Phase 0~3 완료 기준 업데이트 (2026-05-01)*
