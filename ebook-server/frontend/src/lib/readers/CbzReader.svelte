@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { saveProgress } from '$lib/api/books';
+  import { createBookmark, deleteBookmark } from '$lib/api/bookmarks';
+  import type { Bookmark } from '$lib/api/bookmarks';
 
   export let bookId: string;
   export let source: string;
   export let initialPage = 1;
+  export let bookmarks: Bookmark[] = [];
 
   let currentPage = initialPage;
   let pages: string[] = [];
@@ -34,15 +37,12 @@
     await reader.close();
 
     const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-
     const imageEntries = entries.filter((e) => {
       const name = e.filename.toLowerCase();
       if (name.startsWith('__macosx') || name.startsWith('.')) return false;
       const ext = name.split('.').pop() ?? '';
       return imageExts.includes(ext);
     });
-
-    // Natural sort by filename
     imageEntries.sort((a, b) =>
       a.filename.toLowerCase().localeCompare(b.filename.toLowerCase(), undefined, { numeric: true })
     );
@@ -52,9 +52,7 @@
     const entries2 = await zipReader2.getEntries();
     await zipReader2.close();
 
-    // Map sorted names to entries
     const entryMap = new Map(entries2.map((e) => [e.filename, e]));
-
     for (const imgEntry of imageEntries) {
       const entry = entryMap.get(imgEntry.filename);
       if (!entry || !('getData' in entry) || typeof entry.getData !== 'function') continue;
@@ -62,7 +60,6 @@
       const pageBlob = await (entry as any).getData(new BlobWriter());
       urls.push(URL.createObjectURL(pageBlob));
     }
-
     return urls;
   }
 
@@ -72,9 +69,24 @@
     saveProgress(bookId, { page: next, percent: next / pages.length }).catch(() => {});
   }
 
+  export function goToPage(n: number) { changePage(n); }
+
+  async function toggleBookmark() {
+    const existing = bookmarks.find(b => b.page === currentPage);
+    if (existing) {
+      await deleteBookmark(existing.id);
+      bookmarks = bookmarks.filter(b => b.id !== existing.id);
+    } else {
+      const bm = await createBookmark(bookId, currentPage);
+      bookmarks = [...bookmarks, bm];
+    }
+  }
+
+  $: isBookmarked = bookmarks.some(b => b.page === currentPage);
+
   function handleKey(e: KeyboardEvent) {
     if (e.key === 'ArrowRight' || e.key === 'PageDown') changePage(currentPage + 1);
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') changePage(currentPage - 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   changePage(currentPage - 1);
   }
 
   onMount(() => {
@@ -94,7 +106,14 @@
     <button on:click={() => changePage(currentPage - 1)} disabled={currentPage <= 1} class="rounded px-3 py-1 text-sm hover:bg-gray-700 disabled:opacity-40">
       ← 이전
     </button>
-    <span class="text-sm">{currentPage} / {pages.length}</span>
+    <div class="flex items-center gap-3">
+      <span class="text-sm">{currentPage} / {pages.length}</span>
+      <button
+        on:click={toggleBookmark}
+        title="북마크"
+        class="text-sm transition {isBookmarked ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}"
+      >🔖</button>
+    </div>
     <button on:click={() => changePage(currentPage + 1)} disabled={currentPage >= pages.length} class="rounded px-3 py-1 text-sm hover:bg-gray-700 disabled:opacity-40">
       다음 →
     </button>

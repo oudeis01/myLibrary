@@ -51,6 +51,31 @@ pub struct ReadingProgress {
     pub updated_at: OffsetDateTime,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Annotation {
+    pub id: Uuid,
+    pub book_id: Uuid,
+    pub user_id: Uuid,
+    pub kind: String,
+    pub color: Option<String>,
+    pub page: Option<i32>,
+    pub cfi_range: Option<String>,
+    pub position: Option<serde_json::Value>,
+    pub text_content: Option<String>,
+    pub note: Option<String>,
+    pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Bookmark {
+    pub id: Uuid,
+    pub book_id: Uuid,
+    pub user_id: Uuid,
+    pub page: i32,
+    pub label: Option<String>,
+    pub created_at: OffsetDateTime,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookSummary {
     pub id: Uuid,

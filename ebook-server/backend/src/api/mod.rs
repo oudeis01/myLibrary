@@ -3,8 +3,10 @@ use serde_json::json;
 
 use crate::AppState;
 
+pub mod annotations;
 pub mod auth;
 pub mod books;
+pub mod bookmarks;
 pub mod libraries;
 pub mod progress;
 pub mod reader;
@@ -17,6 +19,8 @@ pub fn router(state: AppState) -> Router {
         .merge(books::router())
         .merge(reader::router())
         .merge(progress::router())
+        .merge(annotations::router())
+        .merge(bookmarks::router())
         .with_state(state)
 }
 
