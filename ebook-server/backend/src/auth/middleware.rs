@@ -1,5 +1,5 @@
-use crate::error::AppError;
-use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
+use crate::{error::AppError, AppState};
+use axum::{async_trait, extract::{FromRef, FromRequestParts}, http::request::Parts};
 use axum_extra::{
     headers::{authorization::Bearer, Authorization},
     TypedHeader,
@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: String, // user UUID
+    pub sub: String,
     pub role: String,
     pub exp: i64,
     pub iat: i64,
@@ -22,12 +22,11 @@ pub struct AuthUser {
     pub role: String,
 }
 
-pub struct JwtSecret(pub String);
-
 #[async_trait]
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
+    AppState: FromRef<S>,
 {
     type Rejection = AppError;
 
@@ -37,14 +36,11 @@ where
                 .await
                 .map_err(|_| AppError::Unauthorized)?;
 
-        let secret = parts
-            .extensions
-            .get::<JwtSecret>()
-            .ok_or(AppError::Unauthorized)?;
+        let app_state = AppState::from_ref(state);
 
         let token_data = decode::<Claims>(
             bearer.token(),
-            &DecodingKey::from_secret(secret.0.as_bytes()),
+            &DecodingKey::from_secret(app_state.jwt_secret.as_bytes()),
             &Validation::default(),
         )
         .map_err(|_| AppError::Unauthorized)?;
