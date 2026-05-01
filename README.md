@@ -1,5 +1,7 @@
 # myLibrary
 
+> **Work in progress.** This project is under active development and not yet ready for use.
+
 Self-hosted ebook server with offline reading, multi-user support, and annotations.
 
 Supports PDF, EPUB, and CBZ formats. Rendered entirely in the browser via format-specific readers. Deployable with a single `docker compose up`.
@@ -45,47 +47,16 @@ Supports PDF, EPUB, and CBZ formats. Rendered entirely in the browser via format
 
 ```mermaid
 graph TB
-    subgraph Client["Client (Browser / PWA)"]
-        PDF["PDF Reader<br/>pdfjs-dist"]
-        EPUB["EPUB Reader<br/>epubjs"]
-        CBZ["CBZ Reader<br/>zip.js"]
-        SW["Service Worker<br/>3-tier caching"]
-        IDB["IndexedDB<br/>offline storage"]
-    end
-
-    subgraph Proxy["nginx (:80/:443)"]
-        STATIC["GET /<br/>static files"]
-        API["GET /api/*<br/>reverse proxy"]
-    end
-
-    subgraph Backend["Rust + Axum (:3001)"]
-        AUTH["Auth Router<br/>login / refresh / logout"]
-        LIB["Library Router<br/>CRUD + scan"]
-        BOOKS["Books Router<br/>list / detail / download"]
-        READER["Reader Router<br/>EPUB / cover serving"]
-        PROG["Progress Router<br/>reading position"]
-        ANN["Annotation Router<br/>highlights / notes / export"]
-        BM["Bookmark Router<br/>page bookmarks (CBZ)"]
-        SCANNER["File Scanner<br/>background task"]
-        SEARCH["Tantivy Index<br/>fulltext search"]
-    end
-
-    subgraph Storage["PostgreSQL (:5432)"]
-        DB[(users, libraries,<br/>books, annotations,<br/>bookmarks, progress,<br/>permissions, refresh_tokens)]
-    end
-
-    subgraph FS["File System"]
-        BOOKS_DIR["data/books/<br/>ebook files"]
-        THUMBS_DIR["data/thumbs/<br/>cover images"]
-    end
+    Client["Browser / PWA"]
+    Proxy["nginx (:80)"]
+    Backend["Rust + Axum (:3001)"]
+    DB["PostgreSQL (:5432)"]
+    FS["File System"]
 
     Client --> Proxy
-    STATIC --> Client
-    API --> Backend
-    Backend --> Storage
+    Proxy --> Backend
+    Backend --> DB
     Backend --> FS
-    SCANNER --> BOOKS_DIR
-    SCANNER --> THUMBS_DIR
 ```
 
 ## Features
@@ -129,18 +100,16 @@ Library-level permissions: `can_read`, `can_upload`, `can_edit`, `can_delete`, `
 
 ### API Testing
 
-Bruno collection included in `ebook-server/bruno-tests/`. Covers all 17 endpoints with automated token management and variable chaining.
+Bruno collection included in `bruno-tests/`. Covers all endpoints with automated token management and variable chaining.
 
 ```bash
-# Run full API test suite
-cd ebook-server/bruno-tests
+cd bruno-tests
 bru run --env Local
 ```
 
 ## Project Structure
 
 ```
-ebook-server/
 ├── backend/                     # Rust backend
 │   ├── src/
 │   │   ├── main.rs              # AppState, server startup
@@ -271,7 +240,7 @@ ebook-server/
 
 ```bash
 git clone https://github.com/oudeis01/myLibrary.git
-cd myLibrary/ebook-server
+cd myLibrary
 
 cp .env.example .env
 # Edit .env: set JWT_SECRET (min 32 chars) and DB_PASSWORD
@@ -284,8 +253,6 @@ Access at `http://localhost`. nginx serves the frontend and proxies `/api/*` to 
 ### Development Setup
 
 ```bash
-cd ebook-server
-
 # 1. Start PostgreSQL only
 docker compose -f docker-compose.dev.yml up -d
 
@@ -359,4 +326,4 @@ Migrations run automatically when the backend starts.
 
 ## License
 
-All rights reserved.
+MIT

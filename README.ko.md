@@ -1,10 +1,12 @@
 # myLibrary
 
+> **Work in progress.** 현재 개발 중이며 아직 사용할 수 없습니다.
+
 자체 호스팅 전자책 서버. 오프라인 읽기, 멀티유저, 어노테이션 지원.
 
 PDF, EPUB, CBZ 포맷 지원. 포맷별 전용 리더로 브라우저에서 렌더링. `docker compose up` 한 번으로 배포.
 
-이 문서는 한국어 요약입니다. 상세 내용은 [README.md](README.md)를 참조하세요.
+이 문서는 한글 요약입니다. 상세 내용은 [README.md](README.md)를 참조하세요.
 
 ## 기술 스택
 
@@ -48,7 +50,7 @@ graph TB
 
 ```bash
 git clone https://github.com/oudeis01/myLibrary.git
-cd myLibrary/ebook-server
+cd myLibrary
 
 cp .env.example .env
 # .env 수정: JWT_SECRET (최소 32자), DB_PASSWORD 설정
@@ -61,8 +63,6 @@ docker compose up -d
 ### 개발 환경
 
 ```bash
-cd ebook-server
-
 # PostgreSQL만 컨테이너로 실행
 docker compose -f docker-compose.dev.yml up -d
 
@@ -99,4 +99,4 @@ cd frontend && bun install && bun run dev
 
 ## 라이선스
 
-All rights reserved.
+MIT
