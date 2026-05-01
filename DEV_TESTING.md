@@ -1,368 +1,403 @@
-# Development Environment DB Connection Test Guide
+# Testing Guide
 
-Step-by-step procedure to run the backend locally and verify that the API connects to the database correctly.
-Follow this once from start to finish for initial setup.
+Overview of every testing layer in this project: how to run them, what each covers, and how they fit together.
 
 ---
 
-## Prerequisites
+## Testing Layers at a Glance
 
-Ensure the following tools are installed.
+| Layer | Tool | Scope | When to Run |
+|---|---|---|---|
+| API integration tests | Bruno | All 17 endpoints end-to-end | After backend changes |
+| Backend unit tests | `cargo test` | Format detection, internal logic | During development |
+| CI pipeline | GitHub Actions | Build, migrate, test, type-check | Every push / PR |
+| Manual verification | curl | Quick health checks, token ops | Ad-hoc debugging |
 
-| Tool | Verify command |
+---
+
+## 1. Local Development Setup
+
+Required before running any tests.
+
+### Prerequisites
+
+| Tool | Verify |
 |---|---|
 | Docker & Docker Compose | `docker compose version` |
 | Rust (stable) | `cargo --version` |
 | psql (PostgreSQL client) | `psql --version` |
 | Python 3 + argon2-cffi | `python3 -c "import argon2"` |
+| Node.js (for Bruno CLI) | `node --version` |
 
-If `argon2-cffi` is missing:
+Install missing tools:
+
 ```bash
 pip install argon2-cffi
+npm install -g @usebruno/cli
 ```
 
----
-
-## Step 1: Start the development database
-
-Run from the project root directory.
+### Start the Database
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml ps   # Status must be healthy
 ```
 
-Wait for the container to start, then verify it is healthy:
-
-```bash
-docker compose -f docker-compose.dev.yml ps
-```
-
-The `postgres` container Status should be `healthy`.
-
----
-
-## Step 2: Configure `.env`
-
-Copy `.env.example` to create `.env` (skip if it already exists).
+### Configure Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and change `JWT_SECRET`. The `DATABASE_URL` can stay at the default development value.
+Edit `.env`:
 
 ```dotenv
-# JWT_SECRET: minimum 32-character random string
-# Generate one with:
-#   openssl rand -base64 32
-JWT_SECRET=<your_32plus_char_random_string>
-
+JWT_SECRET=<generate with: openssl rand -base64 32>
 DATABASE_URL=postgres://ebook:devpassword@localhost:5432/ebook
-BOOKS_PATH=./data/books
-THUMBS_PATH=./data/thumbs
+BOOKS_PATH=/absolute/path/data/books
+THUMBS_PATH=/absolute/path/data/thumbs
 SERVER_PORT=3001
 RUST_LOG=debug
 ```
 
-> `.env` is listed in `.gitignore` and will not be committed.
+> `BOOKS_PATH` and `THUMBS_PATH` must be **absolute paths**. Relative paths resolve from `backend/` where `cargo run` executes.
 
----
-
-## Step 3: Create data directories
-
-Directories for book files and thumbnails are required.
+### Create Data Directories
 
 ```bash
 mkdir -p data/books data/thumbs
 ```
 
-> **Important**: Set `BOOKS_PATH` and `THUMBS_PATH` in `.env` to **absolute paths**.
-> Relative paths resolve relative to the directory where `cargo run` executes (`backend/`),
-> which may cause files to be written to `backend/data/thumbs/` instead of the intended location.
->
-> ```dotenv
-> BOOKS_PATH=/absolute/path/data/books
-> THUMBS_PATH=/absolute/path/data/thumbs
-> ```
+### Create Admin Account
+
+There is no signup API. Insert a user directly:
+
+```bash
+# Generate argon2 hash
+HASH=$(python3 -c "
+from argon2 import PasswordHasher
+print(PasswordHasher().hash('devpassword'))
+")
+
+# Insert into database
+psql postgres://ebook:devpassword@localhost:5432/ebook -c \
+  "INSERT INTO users (username, password_hash, role) VALUES ('admin', '$HASH', 'admin');"
+```
+
+### Start the Backend
+
+```bash
+cd backend && cargo run
+```
+
+On success:
+
+```
+INFO ebook_server: running migrations
+INFO ebook_server: listening on 0.0.0.0:3001
+```
 
 ---
 
-## Step 4: Start the backend server
+## 2. API Testing with Bruno
+
+Bruno is the primary tool for API integration testing. The collection covers all 17 endpoints across 7 folders.
+
+### Collection Structure
+
+```
+bruno-tests/
+├── bruno.json                  # Collection metadata
+├── environments/Local.bru      # Environment variables (baseUrl, credentials)
+├── auth/
+│   ├── Health Check.bru        # GET  /api/health
+│   ├── Login.bru               # POST /api/auth/login          -> saves authToken
+│   ├── Refresh Token.bru       # POST /api/auth/refresh
+│   └── Logout.bru              # POST /api/auth/logout
+├── libraries/
+│   ├── List Libraries.bru      # GET  /api/libraries
+│   ├── Create Library.bru      # POST /api/libraries           -> saves libraryId
+│   ├── Get Library.bru         # GET  /api/libraries/:id
+│   ├── Update Library.bru      # PUT  /api/libraries/:id
+│   ├── Scan Library.bru        # POST /api/libraries/:id/scan
+│   └── Delete Library.bru      # DEL  /api/libraries/:id
+├── books/
+│   ├── List Books.bru          # GET  /api/books
+│   ├── Get Book Detail.bru     # GET  /api/books/:id
+│   └── Download Book.bru       # GET  /api/books/:id/download
+├── reader/
+│   ├── Serve EPUB.bru          # GET  /api/reader/:id/epub
+│   └── Serve Cover.bru         # GET  /api/reader/:id/cover
+├── progress/
+│   ├── Save Progress.bru       # PUT  /api/books/:id/progress  -> saves bookId
+│   └── Get Progress.bru        # GET  /api/books/:id/progress
+├── annotations/
+│   ├── List Annotations.bru    # GET  /api/books/:id/annotations
+│   ├── Create Annotation.bru   # POST /api/books/:id/annotations -> saves annotationId
+│   ├── Update Annotation.bru   # PUT  /api/annotations/:id
+│   ├── Delete Annotation.bru   # DEL  /api/annotations/:id
+│   ├── Export Annotations (JSON).bru
+│   └── Export Annotations (MD).bru
+└── bookmarks/
+    ├── List Bookmarks.bru      # GET  /api/books/:id/bookmarks
+    ├── Create Bookmark.bru     # POST /api/books/:id/bookmarks  -> saves bookmarkId
+    └── Delete Bookmark.bru     # DEL  /api/bookmarks/:id
+```
+
+### Environment Variables
+
+`environments/Local.bru` defines connection settings and stores runtime IDs:
+
+```
+baseUrl    = http://localhost:3001    # Server address
+username   = admin                    # Test user
+password   = devpassword              # Test user password
+authToken  = (auto-filled by Login)   # JWT access token
+libraryId  = (auto-filled by Create)  # Library UUID
+bookId     = (auto-filled by Save)    # Book UUID
+annotationId / bookmarkId             # Resource IDs
+```
+
+### Token and ID Propagation
+
+Bruno automatically chains requests using `script:post-response` blocks:
+
+- **Login** saves `access_token` to `authToken` env var
+- **Create Library** saves response `id` to `libraryId`
+- **Save Progress** / **Create Annotation** / **Create Bookmark** similarly propagate IDs
+
+Subsequent requests reference these variables as `{{authToken}}`, `{{libraryId}}`, etc.
+
+### Running Tests
+
+**CLI (headless)**:
+
+```bash
+cd bruno-tests
+bru run --environment Local
+```
+
+Output shows each request status and assertion results.
+
+**GUI (interactive)**:
+
+Open the `bruno-tests/` folder in Bruno desktop app. Select the `Local` environment, then run requests individually or the entire collection.
+
+### Execution Order Matters
+
+Run requests in folder order (auth first, then libraries, books, etc.). Within each folder, follow the `seq` numbering. This ensures:
+
+1. Login runs before authenticated endpoints
+2. Create runs before Get / Update / Delete
+3. Scan runs after a library exists
+
+### Known Limitations (CLI 3.3.0)
+
+- `bru run` keeps env vars in memory only; they are not written to disk during batch runs
+- `assert` blocks with `$res.status` cause ReferenceError; use `script:post-response` with `bru.setEnvVar()` instead
+- Environment files must be edited manually to reset runtime IDs between runs
+
+---
+
+## 3. Backend Unit / Integration Tests
+
+### Running
 
 ```bash
 cd backend
-cargo run
+cargo test
 ```
 
-> The first run takes a few minutes to compile dependencies. Subsequent runs are faster.
+`DATABASE_URL` must be set (via `.env` or environment variable) because the project uses `sqlx` compile-time query macros.
 
-On success, the terminal shows output similar to:
+### Current Coverage
 
-```
-2024-xx-xx ... INFO ebook_server: running migrations
-2024-xx-xx ... INFO ebook_server: listening on 0.0.0.0:3001
-```
+| Module | Test File | Tests | What It Covers |
+|---|---|---|---|
+| Format detection | `src/services/format_detector.rs` | 4 | PDF magic bytes, empty file, unknown format, nonexistent path |
 
-Database migrations (table creation) run automatically on startup.
-
----
-
-## Step 5: Health check
-
-Open a **new terminal** and test:
+Run a specific test:
 
 ```bash
-curl -s http://localhost:3001/api/health | jq
+cargo test fd_01_pdf_magic
 ```
 
-Expected response:
+### Adding Tests
 
-```json
-{ "status": "ok" }
-```
+Backend tests are inline `#[cfg(test)] mod tests` blocks. To add a new test:
 
-If `jq` is not installed, `curl -s http://localhost:3001/api/health` works as well.
+1. Add a `#[cfg(test)] mod tests` block in the relevant source file
+2. Add dev-dependencies to `backend/Cargo.toml` under `[dev-dependencies]`
+3. Run `cargo test` to verify
 
----
+Current dev-dependencies:
 
-## Step 6: Create an admin account (first time only)
-
-A user must exist in the database to log in. There is no signup API, so insert one directly.
-
-### 6-1. Generate an argon2 hash
-
-```bash
-python3 -c "
-from argon2 import PasswordHasher
-ph = PasswordHasher()
-print(ph.hash('devpassword'))
-"
-```
-
-Example output (varies each run):
-
-```
-$argon2id$v=19$m=65536,t=3,p=4$abc123...==$xyz...==
-```
-
-Copy the entire string.
-
-### 6-2. Insert the user into the database
-
-```bash
-psql postgres://ebook:devpassword@localhost:5432/ebook
-```
-
-At the psql prompt, run the following SQL. Replace `HASH_HERE` with the hash copied above.
-
-```sql
-INSERT INTO users (username, password_hash, role)
-VALUES ('admin', 'HASH_HERE', 'admin');
-
--- Verify the insertion
-SELECT id, username, role, created_at FROM users;
-
-\q
+```toml
+[dev-dependencies]
+axum-test = "14"
+tempfile = "3"
 ```
 
 ---
 
-## Step 7: Test the login API
+## 4. CI Pipeline
 
-```bash
-curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "devpassword"}' | jq
+GitHub Actions runs on every push to `main`/`develop` and on pull requests to `main`.
+
+Configuration: `.github/workflows/ci.yml`
+
+### Backend Job
+
+| Step | Command | What It Validates |
+|---|---|---|
+| Install Rust | `dtolnay/rust-toolchain@stable` | Compiler available |
+| Cache cargo | `actions/cache@v4` | Speed up builds |
+| Install sqlx-cli | `cargo install sqlx-cli` | Migration tool |
+| Run migrations | `sqlx migrate run` | Schema applies cleanly |
+| Build | `cargo build --release` | Release compilation |
+| Test | `cargo test` | Unit / integration tests |
+
+Uses PostgreSQL 16 service container with:
+
+```
+POSTGRES_DB=ebook
+POSTGRES_USER=ebook
+POSTGRES_PASSWORD=testpassword
 ```
 
-Expected response:
+### Frontend Job
 
-```json
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...."
-}
-```
+| Step | Command | What It Validates |
+|---|---|---|
+| Setup Bun | `oven-sh/setup-bun@v2` | Runtime available |
+| Install deps | `bun install` | Dependencies resolve |
+| Type check | `bun run check` | TypeScript / Svelte types |
+| Build | `bun run build` | Production build succeeds |
 
-> The `-c cookies.txt` option saves the refresh_token cookie to a file.
-> Use `-b cookies.txt` in subsequent commands to reuse it.
+### Running CI Locally
 
-Storing the token in a variable is convenient:
+Backend equivalent:
 
 ```bash
+cd backend
+DATABASE_URL=postgres://ebook:devpassword@localhost:5432/ebook \
+  JWT_SECRET=test_jwt_secret_minimum_32_characters_long \
+  BOOKS_PATH=/tmp/books \
+  THUMBS_PATH=/tmp/thumbs \
+  cargo test
+```
+
+Frontend equivalent:
+
+```bash
+cd frontend && bun install && bun run check && bun run build
+```
+
+---
+
+## 5. Manual API Verification (curl)
+
+For quick checks without Bruno. Assumes the backend is running and an admin user exists.
+
+### Token Operations
+
+```bash
+# Login (saves refresh cookie to cookies.txt)
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "devpassword"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-echo $TOKEN
+# Refresh (uses saved cookie)
+TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# Check token expiry
+echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
 ```
 
----
-
-## Step 8: Test authenticated API endpoints
-
-Verify that accessing without a token returns 401:
+### Health Check
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/libraries
-# -> 401
+curl -s http://localhost:3001/api/health | jq
+# {"status":"ok"}
 ```
 
-With the token, the response should succeed:
+### Authenticated Request
 
 ```bash
 curl -s http://localhost:3001/api/libraries \
   -H "Authorization: Bearer $TOKEN" | jq
-# -> [] (no libraries yet)
+```
+
+For comprehensive endpoint testing, use the Bruno collection instead.
+
+---
+
+## 6. Common Commands
+
+```bash
+# Database
+docker compose -f docker-compose.dev.yml up -d        # Start
+docker compose -f docker-compose.dev.yml stop          # Stop (preserves data)
+docker compose -f docker-compose.dev.yml down -v       # Remove everything
+
+# Backend
+cd backend && cargo run                                # Start server
+cd backend && cargo watch -x run                       # Auto-restart on changes
+cd backend && cargo test                               # Run tests
+cd backend && cargo build --release                    # Release build
+
+# Frontend
+cd frontend && bun run dev                             # Dev server
+cd frontend && bun run check                           # Type check
+cd frontend && bun run build                           # Production build
+
+# Bruno
+cd bruno-tests && bru run --environment Local          # Run all API tests
 ```
 
 ---
 
-## Step 9: Create a library and scan
+## 7. Troubleshooting
 
-### 9-1. Prepare test book files
+### `DATABASE_URL must be set`
 
-```bash
-# Copy epub, pdf, or cbz files into data/books/
-cp ~/Downloads/sample.epub data/books/
-```
-
-### 9-2. Create a library
-
-Set `path` to an absolute or relative path as seen from the server.
-If running `cargo run` from `backend/`, the relative path would be `../data/books`.
+`.env` is missing or not in scope. Run commands from `backend/`:
 
 ```bash
-curl -s -X POST http://localhost:3001/api/libraries \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My Shelf", "path": "../data/books"}' | jq
+cd backend && cargo run
 ```
 
-Expected response:
+### `connection refused`
 
-```json
-{
-  "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "name": "My Shelf",
-  "path": "../data/books",
-  "created_at": "..."
-}
-```
-
-Copy the `id`.
-
-### 9-3. Trigger a scan
-
-```bash
-LIBRARY_ID="<UUID copied above>"
-
-curl -s -o /dev/null -w "%{http_code}" \
-  -X POST http://localhost:3001/api/libraries/$LIBRARY_ID/scan \
-  -H "Authorization: Bearer $TOKEN"
-# -> 202
-```
-
-Scanning runs in the background. Check the server terminal for logs:
-
-```
-INFO scan complete library_id=... added=3 skipped=0
-```
-
----
-
-## Step 10: Verify book list
-
-```bash
-curl -s http://localhost:3001/api/books \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-If scanned books appear in the list, the entire flow is working.
-
----
-
-## Common commands
-
-```bash
-# Re-issue token (access token expires after 15 minutes)
-TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "devpassword"}' \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-# Refresh token (without re-login, uses refresh_token cookie)
-TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-# Start database
-docker compose -f docker-compose.dev.yml up -d
-
-# Stop database (preserves data)
-docker compose -f docker-compose.dev.yml stop
-
-# Remove database completely (including volumes, start fresh)
-docker compose -f docker-compose.dev.yml down -v
-
-# Connect to psql
-psql postgres://ebook:devpassword@localhost:5432/ebook
-
-# Run backend with auto-restart on code changes
-cd backend && cargo watch -x run
-
-# Run frontend dev server
-cd frontend && bun run dev
-```
-
----
-
-## Troubleshooting
-
-### `DATABASE_URL must be set` error
-
-The `.env` file is missing, or the command was not run from the `backend/` directory.
-
-```bash
-cd backend
-cargo run
-```
-
-### `connection refused` error
-
-The database container is not ready yet.
+Database container is not ready:
 
 ```bash
 docker compose -f docker-compose.dev.yml ps
 # Wait until Status is healthy
 ```
 
-### `401 Unauthorized` on API calls (token expired)
+### `401 Unauthorized` (token expired)
 
-The access token lifetime is **15 minutes**. Re-issue when expired.
+Access tokens expire after 15 minutes. Re-issue:
 
 ```bash
-# Option 1: Re-login
+# Re-login
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "devpassword"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# Option 2: Refresh using refresh_token cookie (requires cookies.txt)
+# Or refresh
 TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 ```
 
-To check if the token is actually expired:
-```bash
-# Decode JWT payload (check the exp field)
-echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
-# date -d @<exp_value>  to see the expiration timestamp
-```
-
 ### `401 Unauthorized` on login
 
-- No user in the database: revisit Step 6
-- Password mismatch: verify the hash generated in 6-1 matches the login password
+- No user in the database: re-run the admin creation step in Section 1
+- Password mismatch: verify the hash matches the login password
 
 ```bash
 psql postgres://ebook:devpassword@localhost:5432/ebook \
@@ -372,7 +407,7 @@ psql postgres://ebook:devpassword@localhost:5432/ebook \
 ### Books not appearing after scan
 
 - Check server logs for `scan failed` messages
-- Verify the `path` is correct relative to the server execution directory (`backend/`)
+- Verify the `path` is correct relative to `backend/`
 - Confirm book files are in epub, pdf, or cbz format
 
 ### `cargo watch` not installed
@@ -380,3 +415,7 @@ psql postgres://ebook:devpassword@localhost:5432/ebook \
 ```bash
 cargo install cargo-watch
 ```
+
+### Bruno CLI `ReferenceError: $res is not defined`
+
+This is a known bug in bru CLI 3.3.0. The collection uses `script:post-response` with `bru.setEnvVar()` instead of `assert` blocks to avoid this issue. If you see this error, check that `.bru` files do not contain `assert { $res.status }` blocks.

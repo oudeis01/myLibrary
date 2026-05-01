@@ -1,13 +1,25 @@
-# 개발 환경 DB 연결 테스트 가이드
+# 테스팅 가이드
 
-로컬에서 백엔드를 직접 실행하고 API가 DB와 제대로 연결되는지 확인하는 절차입니다.  
-**최초 셋업부터 책 스캔까지** 한 번만 쭉 읽으면 됩니다.
+이 프로젝트의 모든 테스트 레이어를 설명합니다: 실행 방법, 각 레이어의 커버리지, 상호 관계.
 
 ---
 
-## 사전 요구사항
+## 테스트 레이어 한눈에 보기
 
-아래가 설치되어 있어야 합니다.
+| 레이어 | 도구 | 범위 | 실행 시점 |
+|---|---|---|---|
+| API 통합 테스트 | Bruno | 전체 17개 엔드포인트 E2E | 백엔드 변경 후 |
+| 백엔드 단위 테스트 | `cargo test` | 포맷 감지 등 내부 로직 | 개발 중 |
+| CI 파이프라인 | GitHub Actions | 빌드, 마이그레이션, 테스트, 타입체크 | push / PR 시 |
+| 수동 검증 | curl | 빠른 헬스체크, 토큰 조작 | 임시 디버깅 |
+
+---
+
+## 1. 로컬 개발 환경 셋업
+
+테스트 실행 전 필수 준비입니다.
+
+### 사전 요구사항
 
 | 도구 | 확인 명령 |
 |---|---|
@@ -15,359 +27,379 @@
 | Rust (stable) | `cargo --version` |
 | psql (PostgreSQL 클라이언트) | `psql --version` |
 | Python 3 + argon2-cffi | `python3 -c "import argon2"` |
+| Node.js (Bruno CLI용) | `node --version` |
 
-`argon2-cffi`가 없다면:
+미설치 도구가 있으면:
+
 ```bash
 pip install argon2-cffi
+npm install -g @usebruno/cli
 ```
 
----
-
-## 1단계: 개발 DB 시작
-
-프로젝트 루트 디렉토리에서 실행합니다.
+### 데이터베이스 시작
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml ps   # Status가 healthy여야 함
 ```
 
-컨테이너가 뜰 때까지 잠깐 기다린 후, 정상 기동 확인:
-
-```bash
-docker compose -f docker-compose.dev.yml ps
-```
-
-`postgres` 컨테이너 Status가 `healthy`여야 합니다.
-
----
-
-## 2단계: `.env` 파일 설정
-
-`.env.example`을 복사해서 `.env`를 만듭니다 (이미 있으면 생략).
+### 환경 설정
 
 ```bash
 cp .env.example .env
 ```
 
-`.env`를 열어서 `JWT_SECRET`만 변경합니다.  
-`DATABASE_URL`은 개발용 기본값 그대로 써도 됩니다.
+`.env` 편집:
 
 ```dotenv
-# JWT_SECRET: 최소 32자 랜덤 문자열
-# 아래 명령으로 생성할 수 있습니다:
-#   openssl rand -base64 32
-JWT_SECRET=여기에_32자_이상의_랜덤_문자열_입력
-
+JWT_SECRET=<openssl rand -base64 32로 생성>
 DATABASE_URL=postgres://ebook:devpassword@localhost:5432/ebook
-BOOKS_PATH=./data/books
-THUMBS_PATH=./data/thumbs
+BOOKS_PATH=/절대경로/data/books
+THUMBS_PATH=/절대경로/data/thumbs
 SERVER_PORT=3001
 RUST_LOG=debug
 ```
 
-> `.env`는 `.gitignore`에 등록되어 있어 커밋되지 않습니다.
+> `BOOKS_PATH`, `THUMBS_PATH`는 **절대경로**로 설정하세요. 상대경로는 `cargo run` 실행 위치인 `backend/` 기준으로 해석됩니다.
 
----
-
-## 3단계: 데이터 디렉토리 생성
-
-책 파일과 썸네일을 저장할 디렉토리가 필요합니다.
+### 데이터 디렉토리 생성
 
 ```bash
-# 프로젝트 루트에서 실행
 mkdir -p data/books data/thumbs
 ```
 
-> **중요**: `.env`의 `BOOKS_PATH` / `THUMBS_PATH`는 **절대경로**로 설정하세요.
-> 상대경로(`./data/...`)를 쓰면 `cargo run`을 실행한 디렉토리(`backend/`)를 기준으로 해석되어
-> `data/thumbs/`가 아닌 `backend/data/thumbs/`에 파일이 생성됩니다.
->
-> ```dotenv
-> BOOKS_PATH=/절대경로/data/books
-> THUMBS_PATH=/절대경로/data/thumbs
-> ```
+### 관리자 계정 생성
+
+가입 API가 없으므로 직접 삽입합니다:
+
+```bash
+# argon2 해시 생성
+HASH=$(python3 -c "
+from argon2 import PasswordHasher
+print(PasswordHasher().hash('devpassword'))
+")
+
+# DB에 삽입
+psql postgres://ebook:devpassword@localhost:5432/ebook -c \
+  "INSERT INTO users (username, password_hash, role) VALUES ('admin', '$HASH', 'admin');"
+```
+
+### 백엔드 실행
+
+```bash
+cd backend && cargo run
+```
+
+성공 시:
+
+```
+INFO ebook_server: running migrations
+INFO ebook_server: listening on 0.0.0.0:3001
+```
 
 ---
 
-## 4단계: 백엔드 서버 실행
+## 2. Bruno로 API 테스트
+
+Bruno는 API 통합 테스트의 기본 도구입니다. 7개 폴더, 17개 엔드포인트를 커버합니다.
+
+### 컬렉션 구조
+
+```
+bruno-test/
+├── annotations/
+│   ├── Create Annotation.bru     # POST /api/books/:id/annotations -> annotationId 저장
+│   ├── Delete Annotation.bru     # DEL  /api/annotations/:id
+│   ├── Export Annotations (JSON).bru
+│   ├── Export Annotations (MD).bru
+│   ├── List Annotations.bru      # GET  /api/books/:id/annotations
+│   └── Update Annotation.bru     # PUT  /api/annotations/:id
+├── auth/
+│   ├── Health Check.bru          # GET  /api/health
+│   ├── Login.bru                 # POST /api/auth/login          -> authToken 저장
+│   ├── Logout.bru                # POST /api/auth/logout
+│   └── Refresh Token.bru         # POST /api/auth/refresh
+├── bookmarks/
+│   ├── Create Bookmark.bru       # POST /api/books/:id/bookmarks  -> bookmarkId 저장
+│   ├── Delete Bookmark.bru       # DEL  /api/bookmarks/:id
+│   └── List Bookmarks.bru        # GET  /api/books/:id/bookmarks
+├── books/
+│   ├── Download Book.bru         # GET  /api/books/:id/download
+│   ├── Get Book Detail.bru       # GET  /api/books/:id
+│   └── List Books.bru            # GET  /api/books
+├── bruno.json                    # 컬렉션 메타데이터
+├── environments/                 # 환경 변수 (baseUrl, 자격증명)
+│   └── Local.bru
+├── libraries/
+│   ├── Create Library.bru        # POST /api/libraries           -> libraryId 저장
+│   ├── Delete Library.bru        # DEL  /api/libraries/:id
+│   ├── Get Library.bru           # GET  /api/libraries/:id
+│   ├── List Libraries.bru        # GET  /api/libraries
+│   ├── Scan Library.bru          # POST /api/libraries/:id/scan
+│   └── Update Library.bru        # PUT  /api/libraries/:id
+├── progress/
+│   ├── Get Progress.bru          # GET  /api/books/:id/progress
+│   └── Save Progress.bru         # PUT  /api/books/:id/progress  -> bookId 저장
+└── reader/
+    ├── Serve Cover.bru           # GET  /api/reader/:id/cover
+    └── Serve EPUB.bru            # GET  /api/reader/:id/epub
+```
+
+
+### 환경 변수
+
+`environments/Local.bru`에 연결 설정과 런타임 ID를 저장합니다:
+
+```
+baseUrl    = http://localhost:3001    # 서버 주소
+username   = admin                    # 테스트 유저
+password   = devpassword              # 테스트 유저 비밀번호
+authToken  = (Login에서 자동 저장)     # JWT 액세스 토큰
+libraryId  = (Create에서 자동 저장)    # 라이브러리 UUID
+bookId     = (Save에서 자동 저장)      # 책 UUID
+annotationId / bookmarkId             # 리소스 ID
+```
+
+### 토큰 및 ID 자동 전파
+
+Bruno는 `script:post-response` 블록으로 요청 간 데이터를 자동 연결합니다:
+
+- **Login**이 `access_token`을 `authToken` 환경변수에 저장
+- **Create Library**가 응답의 `id`를 `libraryId`에 저장
+- **Save Progress** / **Create Annotation** / **Create Bookmark**도 동일 방식으로 ID 전파
+
+이후 요청들은 `{{authToken}}`, `{{libraryId}}` 등으로 이 변수들을 참조합니다.
+
+### 테스트 실행
+
+**CLI (헤드리스)**:
+
+```bash
+cd bruno-tests
+bru run --environment Local
+```
+
+각 요청의 상태코드와 어서션 결과가 출력됩니다.
+
+**GUI (인터랙티브)**:
+
+Bruno 데스크톱 앱에서 `bruno-tests/` 폴더를 엽니다. `Local` 환경을 선택한 뒤 개별 요청 또는 전체 컬렉션을 실행합니다.
+
+### 실행 순서
+
+폴더 순서대로(auth 먼저, 그 다음 libraries, books 등) 실행하세요. 폴더 내에서는 `seq` 번호를 따릅니다. 이렇게 해야:
+
+1. Login이 인증 필요 엔드포인트보다 먼저 실행됨
+2. Create가 Get / Update / Delete보다 먼저 실행됨
+3. Scan이 라이브러리 생성 이후에 실행됨
+
+### 알려진 제한사항 (CLI 3.3.0)
+
+- `bru run`은 환경변수를 메모리에만 유지; 배치 실행 중 디스크에 기록하지 않음
+- `assert` 블록에서 `$res.status` 사용 시 ReferenceError 발생; 대신 `script:post-response` + `bru.setEnvVar()` 사용
+- 런타임 ID를 리셋하려면 환경 파일을 수동 편집해야 함
+
+---
+
+## 3. 백엔드 단위 / 통합 테스트
+
+### 실행
 
 ```bash
 cd backend
-cargo run
+cargo test
 ```
 
-> 첫 실행은 의존성 컴파일로 몇 분 걸립니다. 이후부터는 빠릅니다.
+프로젝트가 `sqlx` 컴파일타임 쿼리 매크로를 사용하므로 `DATABASE_URL`이 설정되어 있어야 합니다 (`.env` 또는 환경변수).
 
-실행 성공 시 터미널에 아래와 유사한 로그가 출력됩니다:
+### 현재 커버리지
 
-```
-2024-xx-xx ... INFO ebook_server: running migrations
-2024-xx-xx ... INFO ebook_server: listening on 0.0.0.0:3001
-```
+| 모듈 | 테스트 파일 | 테스트 수 | 커버 내용 |
+|---|---|---|---|
+| 포맷 감지 | `src/services/format_detector.rs` | 4 | PDF 매직 바이트, 빈 파일, 알 수 없는 포맷, 존재하지 않는 경로 |
 
-마이그레이션(테이블 생성)은 서버 시작 시 자동으로 실행됩니다.
-
----
-
-## 5단계: 헬스 체크
-
-**새 터미널**을 열고 테스트합니다.
+특정 테스트만 실행:
 
 ```bash
-curl -s http://localhost:3001/api/health | jq
+cargo test fd_01_pdf_magic
 ```
 
-기대 응답:
+### 테스트 추가 방법
 
-```json
-{ "status": "ok" }
-```
+백엔드 테스트는 소스 파일 내 `#[cfg(test)] mod tests` 블록으로 작성합니다:
 
-`jq`가 없으면 `curl -s http://localhost:3001/api/health` 만 입력해도 됩니다.
+1. 해당 소스 파일에 `#[cfg(test)] mod tests` 블록 추가
+2. `Cargo.toml`의 `[dev-dependencies]`에 필요 크레이트 추가
+3. `cargo test`로 검증
 
----
+현재 dev-dependencies:
 
-## 6단계: 관리자 계정 생성 (최초 1회)
-
-로그인하려면 DB에 유저가 있어야 합니다.  
-가입 API는 없으므로 직접 삽입합니다.
-
-### 6-1. argon2 해시 생성
-
-```bash
-python3 -c "
-from argon2 import PasswordHasher
-ph = PasswordHasher()
-print(ph.hash('devpassword'))
-"
-```
-
-출력 예시 (실행마다 달라집니다):
-
-```
-$argon2id$v=19$m=65536,t=3,p=4$abc123...==$xyz...==
-```
-
-이 문자열 전체를 복사해 둡니다.
-
-### 6-2. DB에 유저 삽입
-
-```bash
-psql postgres://ebook:devpassword@localhost:5432/ebook
-```
-
-psql 프롬프트에서 아래 SQL을 실행합니다.  
-`HASH_HERE` 자리에 위에서 복사한 해시를 붙여넣습니다.
-
-```sql
-INSERT INTO users (username, password_hash, role)
-VALUES ('admin', 'HASH_HERE', 'admin');
-
--- 삽입 확인
-SELECT id, username, role, created_at FROM users;
-
-\q
+```toml
+[dev-dependencies]
+axum-test = "14"
+tempfile = "3"
 ```
 
 ---
 
-## 7단계: 로그인 API 테스트
+## 4. CI 파이프라인
 
-```bash
-curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "devpassword"}' | jq
+GitHub Actions는 `main`/`develop` 브랜치 push 및 `main` 대상 PR에서 실행됩니다.
+
+설정 파일: `.github/workflows/ci.yml`
+
+### 백엔드 잡
+
+| 단계 | 명령 | 검증 내용 |
+|---|---|---|
+| Rust 설치 | `dtolnay/rust-toolchain@stable` | 컴파일러 사용 가능 |
+| cargo 캐시 | `actions/cache@v4` | 빌드 속도 향상 |
+| sqlx-cli 설치 | `cargo install sqlx-cli` | 마이그레이션 도구 |
+| 마이그레이션 실행 | `sqlx migrate run` | 스키마 정상 적용 |
+| 빌드 | `cargo build --release` | 릴리즈 컴파일 |
+| 테스트 | `cargo test` | 단위 / 통합 테스트 |
+
+PostgreSQL 16 서비스 컨테이너 설정:
+
+```
+POSTGRES_DB=ebook
+POSTGRES_USER=ebook
+POSTGRES_PASSWORD=testpassword
 ```
 
-기대 응답:
+### 프론트엔드 잡
 
-```json
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...."
-}
-```
+| 단계 | 명령 | 검증 내용 |
+|---|---|---|
+| Bun 설치 | `oven-sh/setup-bun@v2` | 런타임 사용 가능 |
+| 의존성 설치 | `bun install` | 의존성 해석 |
+| 타입체크 | `bun run check` | TypeScript / Svelte 타입 |
+| 빌드 | `bun run build` | 프로덕션 빌드 성공 |
 
-> `-c cookies.txt` 옵션으로 refresh_token 쿠키가 파일에 저장됩니다.  
-> 이후 명령에서 `-b cookies.txt`로 재사용합니다.
+### CI와 동일하게 로컬에서 실행
 
-토큰을 변수에 저장해 두면 편합니다:
+백엔드:
 
 ```bash
+cd backend
+DATABASE_URL=postgres://ebook:devpassword@localhost:5432/ebook \
+  JWT_SECRET=test_jwt_secret_minimum_32_characters_long \
+  BOOKS_PATH=/tmp/books \
+  THUMBS_PATH=/tmp/thumbs \
+  cargo test
+```
+
+프론트엔드:
+
+```bash
+cd frontend && bun install && bun run check && bun run build
+```
+
+---
+
+## 5. 수동 API 검증 (curl)
+
+Bruno 없이 빠르게 확인할 때 사용합니다. 백엔드가 실행 중이고 관리자 계정이 있다고 가정합니다.
+
+### 토큰 조작
+
+```bash
+# 로그인 (refresh 쿠키를 cookies.txt에 저장)
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "devpassword"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-echo $TOKEN
+# 갱신 (저장된 쿠키 사용)
+TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 토큰 만료 확인
+echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
 ```
 
----
-
-## 8단계: 인증 필요 API 테스트
-
-토큰 없이 접근하면 401이 반환되는지 확인:
+### 헬스체크
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/libraries
-# → 401
+curl -s http://localhost:3001/api/health | jq
+# {"status":"ok"}
 ```
 
-토큰을 포함하면 정상 응답:
+### 인증 필요 요청
 
 ```bash
 curl -s http://localhost:3001/api/libraries \
   -H "Authorization: Bearer $TOKEN" | jq
-# → [] (아직 라이브러리 없음)
+```
+
+전체 엔드포인트 테스트는 Bruno 컬렉션을 사용하세요.
+
+---
+
+## 6. 자주 쓰는 명령 모음
+
+```bash
+# 데이터베이스
+docker compose -f docker-compose.dev.yml up -d        # 시작
+docker compose -f docker-compose.dev.yml stop          # 중지 (데이터 유지)
+docker compose -f docker-compose.dev.yml down -v       # 전체 삭제
+
+# 백엔드
+cd backend && cargo run                                # 서버 실행
+cd backend && cargo watch -x run                       # 코드 변경 시 자동 재시작
+cd backend && cargo test                               # 테스트 실행
+cd backend && cargo build --release                    # 릴리즈 빌드
+
+# 프론트엔드
+cd frontend && bun run dev                             # 개발 서버
+cd frontend && bun run check                           # 타입체크
+cd frontend && bun run build                           # 프로덕션 빌드
+
+# Bruno
+cd bruno-tests && bru run --environment Local          # 전체 API 테스트 실행
 ```
 
 ---
 
-## 9단계: 라이브러리 생성 + 스캔
+## 7. 문제 해결
 
-### 9-1. 테스트용 책 파일 준비
+### `DATABASE_URL must be set`
 
-```bash
-# data/books/ 에 epub, pdf, cbz 파일을 복사합니다.
-cp ~/Downloads/sample.epub data/books/
-```
-
-### 9-2. 라이브러리 생성
-
-`path`에는 **서버 기준 절대경로 또는 상대경로**를 입력합니다.
-`cargo run`을 `backend/`에서 실행했다면 `../data/books`가 됩니다.
+`.env` 파일이 없거나 `backend/`에서 실행하지 않은 경우:
 
 ```bash
-curl -s -X POST http://localhost:3001/api/libraries \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "내 책장", "path": "../data/books"}' | jq
+cd backend && cargo run
 ```
 
-기대 응답:
+### `connection refused`
 
-```json
-{
-  "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "name": "내 책장",
-  "path": "../data/books",
-  "created_at": "..."
-}
-```
-
-`id`를 복사해 둡니다.
-
-### 9-3. 스캔 트리거
-
-```bash
-LIBRARY_ID="위에서 복사한 UUID"
-
-curl -s -o /dev/null -w "%{http_code}" \
-  -X POST http://localhost:3001/api/libraries/$LIBRARY_ID/scan \
-  -H "Authorization: Bearer $TOKEN"
-# → 202
-```
-
-스캔은 백그라운드에서 실행됩니다.  
-서버 터미널에서 로그를 확인합니다:
-
-```
-INFO scan complete library_id=... added=3 skipped=0
-```
-
----
-
-## 10단계: 책 목록 확인
-
-```bash
-curl -s http://localhost:3001/api/books \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-스캔한 책들이 목록에 나타나면 전체 플로우 성공입니다.
-
----
-
-## 자주 쓰는 명령 모음
-
-```bash
-# 토큰 재발급 (액세스 토큰은 15분 후 만료됨 — 만료됐으면 이걸 다시 실행)
-TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "devpassword"}' \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-# 토큰 갱신 (로그인 없이, refresh_token 쿠키 사용)
-TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-# DB 시작
-docker compose -f docker-compose.dev.yml up -d
-
-# DB 중지 (데이터 유지)
-docker compose -f docker-compose.dev.yml stop
-
-# DB 완전 삭제 (볼륨 포함, 처음부터 다시 시작할 때)
-docker compose -f docker-compose.dev.yml down -v
-
-# psql 접속
-psql postgres://ebook:devpassword@localhost:5432/ebook
-
-# 백엔드 실행 (코드 변경 시 자동 재시작)
-cd backend && cargo watch -x run
-
-# 프론트엔드 dev 서버
-cd frontend && bun run dev
-```
-
----
-
-## 문제 해결
-
-### `DATABASE_URL must be set` 오류
-
-`.env` 파일이 없거나 `backend/`에서 실행하지 않은 경우입니다.
-
-```bash
-cd backend
-cargo run
-```
-
-### `connection refused` 오류
-
-DB 컨테이너가 아직 준비 안 된 경우입니다.
+DB 컨테이너가 아직 준비되지 않음:
 
 ```bash
 docker compose -f docker-compose.dev.yml ps
-# Status가 healthy가 될 때까지 기다립니다
+# Status가 healthy가 될 때까지 대기
 ```
 
 ### API 호출 시 `401 Unauthorized` (토큰 만료)
 
-액세스 토큰 유효 기간은 **15분**입니다. 만료되면 재발급이 필요합니다.
+액세스 토큰은 15분 후 만료됩니다:
 
 ```bash
-# 방법 1: 다시 로그인
+# 재로그인
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "devpassword"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# 방법 2: refresh_token 쿠키로 갱신 (cookies.txt가 있을 때)
+# 또는 갱신 (cookies.txt 필요)
 TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 ```
 
-토큰이 정말 만료됐는지 확인하려면:
-```bash
-# JWT 페이로드 디코드 (exp 필드 확인)
-echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
-# date -d @<exp값>  으로 만료 시각 확인
-```
-
 ### 로그인 시 `401 Unauthorized`
 
-- 유저가 DB에 없는 경우 → 6단계 다시 확인
-- 비밀번호가 다른 경우 → 6-1에서 생성한 해시와 로그인 비밀번호가 일치하는지 확인
+- DB에 유저가 없음 -> 1장 관리자 계정 생성 단계 재실행
+- 비밀번호 불일치 -> 해시와 로그인 비밀번호가 일치하는지 확인
 
 ```bash
 psql postgres://ebook:devpassword@localhost:5432/ebook \
@@ -377,11 +409,15 @@ psql postgres://ebook:devpassword@localhost:5432/ebook \
 ### 스캔 후 책이 안 보임
 
 - 서버 로그에서 `scan failed` 메시지 확인
-- `path`가 서버 실행 위치(`backend/`) 기준으로 올바른지 확인
-- 책 파일 형식이 epub/pdf/cbz인지 확인
+- `path`가 `backend/` 기준으로 올바른지 확인
+- 책 파일이 epub/pdf/cbz 형식인지 확인
 
 ### `cargo watch` 설치 안 됨
 
 ```bash
 cargo install cargo-watch
 ```
+
+### Bruno CLI에서 `ReferenceError: $res is not defined`
+
+bru CLI 3.3.0의 알려진 버그입니다. 컬렉션은 `assert` 대신 `script:post-response` + `bru.setEnvVar()`를 사용하여 이 문제를 회피합니다. 이 에러가 보이면 `.bru` 파일에 `assert { $res.status }` 블록이 없는지 확인하세요.
