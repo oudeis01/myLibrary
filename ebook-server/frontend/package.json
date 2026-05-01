@@ -1,0 +1,32 @@
+{
+  "name": "ebook-frontend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/adapter-static": "^3.0.0",
+    "vite-plugin-pwa": "^0.19.0",
+    "pdfjs-dist": "^4.0.0",
+    "epubjs": "^0.3.93",
+    "@zip.js/zip.js": "^2.7.0",
+    "idb": "^8.0.0",
+    "ky": "^1.0.0",
+    "lucide-svelte": "^0.400.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "svelte": "^4.0.0",
+    "svelte-check": "^3.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "workbox-precaching": "^7.0.0"
+  }
+}

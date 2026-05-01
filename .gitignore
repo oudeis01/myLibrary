@@ -1,0 +1,19 @@
+# Rust
+ebook-server/backend/target/
+
+# Frontend build
+ebook-server/frontend/node_modules/
+ebook-server/frontend/.svelte-kit/
+ebook-server/frontend/build/
+
+# Environment secrets
+ebook-server/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp

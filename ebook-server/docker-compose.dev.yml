@@ -1,0 +1,22 @@
+# 개발 환경: PostgreSQL만 컨테이너로 실행
+# 백엔드: cargo watch -x run
+# 프론트엔드: bun run dev
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ebook
+      POSTGRES_USER: ebook
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - pg_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ebook"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg_dev_data:

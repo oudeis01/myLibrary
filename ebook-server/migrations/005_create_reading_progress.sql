@@ -1,0 +1,9 @@
+CREATE TABLE reading_progress (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    book_id UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    page INTEGER NOT NULL DEFAULT 1,
+    cfi TEXT,
+    percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, book_id)
+);
