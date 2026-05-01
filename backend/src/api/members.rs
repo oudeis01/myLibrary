@@ -78,35 +78,33 @@ async fn add_member(
     let can_read = payload.can_read.unwrap_or(true);
     let can_upload = payload.can_upload.unwrap_or(false);
 
-    sqlx::query!(
-        r#"INSERT INTO library_permissions (library_id, user_id, can_read, can_upload)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (library_id, user_id) DO UPDATE
-             SET can_read = EXCLUDED.can_read, can_upload = EXCLUDED.can_upload"#,
+    let row = sqlx::query!(
+        r#"WITH upsert AS (
+             INSERT INTO library_permissions (library_id, user_id, can_read, can_upload)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (library_id, user_id) DO UPDATE
+               SET can_read = EXCLUDED.can_read, can_upload = EXCLUDED.can_upload
+             RETURNING user_id, can_read, can_upload
+           )
+           SELECT u.username, upsert.can_read, upsert.can_upload
+           FROM upsert
+           JOIN users u ON u.id = upsert.user_id"#,
         library_id,
         payload.user_id,
         can_read,
         can_upload,
     )
-    .execute(&state.pool)
-    .await?;
-
-    let username = sqlx::query!(
-        "SELECT username FROM users WHERE id = $1",
-        payload.user_id,
-    )
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(AppError::NotFound)?
-    .username;
+    .ok_or(AppError::NotFound)?;
 
     Ok((
         StatusCode::CREATED,
         Json(MemberResponse {
             user_id: payload.user_id,
-            username,
-            can_read,
-            can_upload,
+            username: row.username,
+            can_read: row.can_read,
+            can_upload: row.can_upload,
         }),
     ))
 }
@@ -118,11 +116,16 @@ async fn update_member(
     Json(payload): Json<UpdateMemberRequest>,
 ) -> Result<Json<MemberResponse>, AppError> {
     let row = sqlx::query!(
-        r#"UPDATE library_permissions SET
-             can_read = COALESCE($1, can_read),
-             can_upload = COALESCE($2, can_upload)
-           WHERE library_id = $3 AND user_id = $4
-           RETURNING can_read, can_upload"#,
+        r#"WITH upd AS (
+             UPDATE library_permissions SET
+               can_read = COALESCE($1, can_read),
+               can_upload = COALESCE($2, can_upload)
+             WHERE library_id = $3 AND user_id = $4
+             RETURNING user_id, can_read, can_upload
+           )
+           SELECT u.username, upd.can_read, upd.can_upload
+           FROM upd
+           JOIN users u ON u.id = upd.user_id"#,
         payload.can_read,
         payload.can_upload,
         library_id,
@@ -132,17 +135,9 @@ async fn update_member(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let username = sqlx::query!(
-        "SELECT username FROM users WHERE id = $1",
-        user_id,
-    )
-    .fetch_one(&state.pool)
-    .await?
-    .username;
-
     Ok(Json(MemberResponse {
         user_id,
-        username,
+        username: row.username,
         can_read: row.can_read,
         can_upload: row.can_upload,
     }))

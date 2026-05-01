@@ -76,7 +76,7 @@ pub struct Bookmark {
     pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct BookSummary {
     pub id: Uuid,
     pub library_id: Uuid,

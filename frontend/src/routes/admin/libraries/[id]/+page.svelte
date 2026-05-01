@@ -1,8 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
-  import { currentUser } from '$lib/stores/auth';
   import { api } from '$lib/api/client';
   import {
     getUsers,
@@ -29,10 +27,6 @@
   let adding = false;
 
   onMount(async () => {
-    if ($currentUser && $currentUser.role !== 'admin') {
-      goto('/library');
-      return;
-    }
     await Promise.all([loadMembers(), loadAllUsers(), loadLibraryName()]);
   });
 

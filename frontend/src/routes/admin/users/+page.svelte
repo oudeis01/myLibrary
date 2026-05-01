@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import { currentUser } from '$lib/stores/auth';
   import { getUsers, createUser, updateUser, deleteUser } from '$lib/api/users';
   import type { User } from '$lib/api/users';
+  type UserRole = User['role'];
 
   let users: User[] = [];
   let loading = true;
@@ -16,15 +16,11 @@
   let newRole = 'member';
   let creating = false;
 
-  // Inline role edit
+  // Inline role edit — typed as string to allow template binding; cast to UserRole at call site
   let editingId = '';
-  let editingRole = '';
+  let editingRole = 'member';
 
   onMount(async () => {
-    if ($currentUser && $currentUser.role !== 'admin') {
-      goto('/library');
-      return;
-    }
     await loadUsers();
   });
 
@@ -43,12 +39,12 @@
     creating = true;
     error = '';
     try {
-      await createUser(newUsername, newPassword, newRole);
+      const created = await createUser(newUsername, newPassword, newRole);
+      users = [...users, created];
       newUsername = '';
       newPassword = '';
       newRole = 'member';
       showCreate = false;
-      await loadUsers();
     } catch {
       error = '유저 생성에 실패했습니다. 이미 존재하는 아이디일 수 있습니다.';
     } finally {
@@ -59,9 +55,9 @@
   async function saveRole(id: string) {
     error = '';
     try {
-      await updateUser(id, { role: editingRole });
+      const updated = await updateUser(id, { role: editingRole as UserRole });
+      users = users.map((u) => (u.id === id ? updated : u));
       editingId = '';
-      await loadUsers();
     } catch {
       error = '역할 변경에 실패했습니다.';
     }
@@ -72,7 +68,7 @@
     error = '';
     try {
       await deleteUser(id);
-      await loadUsers();
+      users = users.filter((u) => u.id !== id);
     } catch {
       error = '유저 삭제에 실패했습니다.';
     }

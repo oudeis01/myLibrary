@@ -1,9 +1,16 @@
 import ky, { type KyInstance } from 'ky';
 
 let accessToken: string | null = null;
+let onTokenChange: ((t: string | null) => void) | null = null;
+
+export function setTokenChangeCallback(cb: (t: string | null) => void) {
+  onTokenChange = cb;
+}
 
 export function setAccessToken(token: string | null) {
+  if (token === accessToken) return; // break store ↔ client update loop
   accessToken = token;
+  onTokenChange?.(token);
 }
 
 export function getAccessToken(): string | null {
@@ -25,7 +32,6 @@ export const api: KyInstance = ky.create({
         if (response.status === 401 && !request.url.includes('/auth/')) {
           const refreshed = await tryRefresh();
           if (refreshed) {
-            // Retry original request with new token
             request.headers.set('Authorization', `Bearer ${accessToken}`);
             return ky(request);
           }
@@ -39,7 +45,7 @@ export const api: KyInstance = ky.create({
 async function tryRefresh(): Promise<boolean> {
   try {
     const data = await ky.post('/api/auth/refresh').json<{ access_token: string }>();
-    setAccessToken(data.access_token);
+    setAccessToken(data.access_token); // propagates to Svelte store via onTokenChange
     return true;
   } catch {
     setAccessToken(null);

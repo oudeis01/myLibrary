@@ -4,9 +4,8 @@
   import { page } from '$app/stores';
   import { accessToken, isAuthenticated, currentUser } from '$lib/stores/auth';
   import { isOffline, initOfflineStore } from '$lib/stores/offline';
-  import { refresh } from '$lib/api/auth';
+  import { refresh, logout } from '$lib/api/auth';
   import { getMe } from '$lib/api/users';
-  import { logout } from '$lib/api/auth';
   import { onMount } from 'svelte';
   import '$lib/offline/sync';
 
@@ -28,21 +27,13 @@
     }
 
     if ($isAuthenticated) {
-      await initOfflineStore();
-      try {
-        const me = await getMe();
-        currentUser.set(me);
-      } catch {
-        // ignore — non-critical
-      }
+      // Run independently — IndexedDB read and /users/me network call are unrelated
+      const [, meResult] = await Promise.allSettled([initOfflineStore(), getMe()]);
+      if (meResult.status === 'fulfilled') currentUser.set(meResult.value);
     }
   });
 
-  $: if (
-    typeof window !== 'undefined' &&
-    !$isAuthenticated &&
-    !PUBLIC_ROUTES.includes($page.url.pathname)
-  ) {
+  $: if (!$isAuthenticated && !PUBLIC_ROUTES.includes($page.url.pathname)) {
     goto('/login');
   }
 

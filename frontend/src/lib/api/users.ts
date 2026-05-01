@@ -26,7 +26,7 @@ export async function createUser(username: string, password: string, role = 'mem
   return api.post('users', { json: { username, password, role } }).json();
 }
 
-export async function updateUser(id: string, data: { role?: string; password?: string }): Promise<User> {
+export async function updateUser(id: string, data: { role?: User['role']; password?: string }): Promise<User> {
   return api.patch(`users/${id}`, { json: data }).json();
 }
 

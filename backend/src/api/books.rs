@@ -43,7 +43,8 @@ async fn list_books(
     }
 
     let books: Vec<BookSummary> = if auth.is_admin() {
-        sqlx::query!(
+        sqlx::query_as!(
+            BookSummary,
             r#"SELECT id, library_id, title, authors, format, cover_path, page_count, year, created_at
                FROM books
                WHERE ($1::uuid IS NULL OR library_id = $1)
@@ -59,21 +60,9 @@ async fn list_books(
         )
         .fetch_all(&state.pool)
         .await?
-        .into_iter()
-        .map(|r| BookSummary {
-            id: r.id,
-            library_id: r.library_id,
-            title: r.title,
-            authors: r.authors,
-            format: r.format,
-            cover_path: r.cover_path,
-            page_count: r.page_count,
-            year: r.year,
-            created_at: r.created_at,
-        })
-        .collect()
     } else {
-        sqlx::query!(
+        sqlx::query_as!(
+            BookSummary,
             r#"SELECT b.id, b.library_id, b.title, b.authors, b.format, b.cover_path,
                       b.page_count, b.year, b.created_at
                FROM books b
@@ -97,19 +86,6 @@ async fn list_books(
         )
         .fetch_all(&state.pool)
         .await?
-        .into_iter()
-        .map(|r| BookSummary {
-            id: r.id,
-            library_id: r.library_id,
-            title: r.title,
-            authors: r.authors,
-            format: r.format,
-            cover_path: r.cover_path,
-            page_count: r.page_count,
-            year: r.year,
-            created_at: r.created_at,
-        })
-        .collect()
     };
 
     Ok(Json(books))
