@@ -3,6 +3,7 @@
   import { saveProgress, getProgress } from '$lib/api/books';
 
   export let bookId: string;
+  export let source: string;
 
   let container: HTMLDivElement;
   let loading = true;
@@ -29,7 +30,7 @@
       // Dynamic import to avoid SSR window errors
       const Epub = (await import('epubjs')).default;
 
-      book = Epub(`/api/reader/${bookId}/epub`);
+      book = Epub(source);
       rendition = book.renderTo(container, {
         width: '100%',
         height: '100%',

@@ -3,6 +3,7 @@
   import { saveProgress } from '$lib/api/books';
 
   export let bookId: string;
+  export let source: string;
   export let initialPage = 1;
 
   let canvas: HTMLCanvasElement;
@@ -30,8 +31,7 @@
         import.meta.url
       ).toString();
 
-      const url = `/api/books/${bookId}/download`;
-      pdfDoc = await pdfjs.getDocument(url).promise;
+      pdfDoc = await pdfjs.getDocument(source).promise;
       // @ts-ignore
       totalPages = pdfDoc.numPages;
       await renderPage(currentPage);

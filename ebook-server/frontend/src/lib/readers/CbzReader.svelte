@@ -3,6 +3,7 @@
   import { saveProgress } from '$lib/api/books';
 
   export let bookId: string;
+  export let source: string;
   export let initialPage = 1;
 
   let currentPage = initialPage;
@@ -13,7 +14,7 @@
   async function loadCbz() {
     loading = true;
     try {
-      const response = await fetch(`/api/books/${bookId}/download`);
+      const response = await fetch(source);
       if (!response.ok) throw new Error('download failed');
       const blob = await response.blob();
       pages = await extractPages(blob);

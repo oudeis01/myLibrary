@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getBook, getProgress } from '$lib/api/books';
   import type { Book, ReadingProgress } from '$lib/api/books';
+  import { getBookSource } from '$lib/offline/db';
   import PdfReader from '$lib/readers/PdfReader.svelte';
   import EpubReader from '$lib/readers/EpubReader.svelte';
   import CbzReader from '$lib/readers/CbzReader.svelte';
@@ -12,15 +13,26 @@
   let progress: ReadingProgress | null = null;
   let loading = true;
   let error = '';
+  let source = '';
+  let sourceIsObjectUrl = false;
 
   onMount(async () => {
     const id = $page.params.id!;
     try {
       [book, progress] = await Promise.all([getBook(id), getProgress(id)]);
+      const result = await getBookSource(id);
+      source = result.url;
+      sourceIsObjectUrl = result.isObjectUrl;
     } catch {
       error = '책을 불러올 수 없습니다.';
     } finally {
       loading = false;
+    }
+  });
+
+  onDestroy(() => {
+    if (sourceIsObjectUrl && source) {
+      URL.revokeObjectURL(source);
     }
   });
 </script>
@@ -49,11 +61,11 @@
         <p class="text-red-500">{error || '책을 찾을 수 없습니다.'}</p>
       </div>
     {:else if book.format === 'pdf'}
-      <PdfReader bookId={book.id} initialPage={progress?.page ?? 1} />
+      <PdfReader bookId={book.id} {source} initialPage={progress?.page ?? 1} />
     {:else if book.format === 'epub'}
-      <EpubReader bookId={book.id} />
+      <EpubReader bookId={book.id} {source} />
     {:else if book.format === 'cbz'}
-      <CbzReader bookId={book.id} initialPage={progress?.page ?? 1} />
+      <CbzReader bookId={book.id} {source} initialPage={progress?.page ?? 1} />
     {:else}
       <div class="flex h-full items-center justify-center">
         <p class="text-gray-500">지원하지 않는 형식: {book.format}</p>

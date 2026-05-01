@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { BookSummary } from '$lib/api/books';
+  import { offlineBookIds } from '$lib/stores/offline';
 
   export let book: BookSummary;
 
@@ -32,6 +33,11 @@
     <span class="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-xs font-bold {FORMAT_COLORS[book.format] ?? 'bg-gray-100 text-gray-600'}">
       {FORMAT_ICONS[book.format] ?? book.format.toUpperCase()}
     </span>
+    {#if $offlineBookIds.has(book.id)}
+      <span class="absolute left-2 top-2 rounded-full bg-amber-400 p-1 text-xs leading-none" title="오프라인 저장됨">
+        ☁
+      </span>
+    {/if}
   </div>
 
   <!-- Info -->

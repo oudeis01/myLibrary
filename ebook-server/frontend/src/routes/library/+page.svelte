@@ -48,7 +48,10 @@
   <header class="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
       <h1 class="text-lg font-bold text-gray-900">📚 MyLibrary</h1>
-      <button on:click={handleLogout} class="text-sm text-gray-500 hover:text-red-600">로그아웃</button>
+      <div class="flex items-center gap-4">
+        <a href="/offline" class="text-sm text-gray-500 hover:text-indigo-600">☁ 오프라인</a>
+        <button on:click={handleLogout} class="text-sm text-gray-500 hover:text-red-600">로그아웃</button>
+      </div>
     </div>
   </header>
 
