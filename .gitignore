@@ -9,6 +9,12 @@ ebook-server/frontend/build/
 # Environment secrets
 ebook-server/.env
 
+# Bruno CLI test output (contains actual tokens)
+**/bruno-tests/json
+
+# User content
+ebook-server/data/
+
 # OS
 .DS_Store
 Thumbs.db
