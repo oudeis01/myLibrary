@@ -282,6 +282,16 @@ curl -s http://localhost:3001/api/books \
 ## 자주 쓰는 명령 모음
 
 ```bash
+# 토큰 재발급 (액세스 토큰은 15분 후 만료됨 — 만료됐으면 이걸 다시 실행)
+TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "devpassword"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 토큰 갱신 (로그인 없이, refresh_token 쿠키 사용)
+TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
 # DB 시작
 docker compose -f docker-compose.dev.yml up -d
 
@@ -322,6 +332,29 @@ DB 컨테이너가 아직 준비 안 된 경우입니다.
 ```bash
 docker compose -f docker-compose.dev.yml ps
 # Status가 healthy가 될 때까지 기다립니다
+```
+
+### API 호출 시 `401 Unauthorized` (토큰 만료)
+
+액세스 토큰 유효 기간은 **15분**입니다. 만료되면 재발급이 필요합니다.
+
+```bash
+# 방법 1: 다시 로그인
+TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "devpassword"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 방법 2: refresh_token 쿠키로 갱신 (cookies.txt가 있을 때)
+TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+```
+
+토큰이 정말 만료됐는지 확인하려면:
+```bash
+# JWT 페이로드 디코드 (exp 필드 확인)
+echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
+# date -d @<exp값>  으로 만료 시각 확인
 ```
 
 ### 로그인 시 `401 Unauthorized`
