@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_id, book_id, page, cfi, percent, updated_at\n         FROM reading_progress WHERE user_id = $1 AND book_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "book_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "cfi",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "percent",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "1985ce551b820b85b0d8858d0797eef04468be528b3c2d474a26c7fea9684915"
+}

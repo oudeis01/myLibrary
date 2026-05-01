@@ -18,8 +18,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     volumes:
       - books_data:/books
       - thumbs_data:/thumbs
@@ -30,6 +30,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: "3001"
       RUST_LOG: info
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy

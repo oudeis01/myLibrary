@@ -102,7 +102,7 @@ pub async fn scan_library(
     Ok(result)
 }
 
-fn extract_metadata(path: &Path, format: &BookFormat) -> parser::BookMetadata {
+pub fn extract_metadata(path: &Path, format: &BookFormat) -> parser::BookMetadata {
     match format {
         BookFormat::Pdf => parser::pdf::extract_metadata(path).unwrap_or_default(),
         BookFormat::Epub => parser::epub::extract_metadata(path).unwrap_or_default(),
@@ -110,7 +110,7 @@ fn extract_metadata(path: &Path, format: &BookFormat) -> parser::BookMetadata {
     }
 }
 
-async fn save_cover(path: &Path, format: &BookFormat, thumbs_path: &str) -> Option<String> {
+pub async fn save_cover(path: &Path, format: &BookFormat, thumbs_path: &str) -> Option<String> {
     let bytes = match format {
         BookFormat::Pdf => parser::pdf::extract_cover(path),
         BookFormat::Epub => parser::epub::extract_cover(path),

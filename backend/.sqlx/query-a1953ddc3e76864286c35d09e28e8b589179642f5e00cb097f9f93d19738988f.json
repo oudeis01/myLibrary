@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH upsert AS (\n             INSERT INTO library_permissions (library_id, user_id, can_read, can_upload)\n             VALUES ($1, $2, $3, $4)\n             ON CONFLICT (library_id, user_id) DO UPDATE\n               SET can_read = EXCLUDED.can_read, can_upload = EXCLUDED.can_upload\n             RETURNING user_id, can_read, can_upload\n           )\n           SELECT u.username, upsert.can_read, upsert.can_upload\n           FROM upsert\n           JOIN users u ON u.id = upsert.user_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "can_read",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "can_upload",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a1953ddc3e76864286c35d09e28e8b589179642f5e00cb097f9f93d19738988f"
+}

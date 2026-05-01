@@ -86,5 +86,6 @@ pub struct BookSummary {
     pub cover_path: Option<String>,
     pub page_count: Option<i32>,
     pub year: Option<i32>,
+    pub tags: Vec<String>,
     pub created_at: OffsetDateTime,
 }

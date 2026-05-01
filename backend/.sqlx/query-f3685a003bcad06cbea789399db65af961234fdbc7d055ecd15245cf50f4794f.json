@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.id, b.library_id, b.title, b.authors, b.format, b.cover_path,\n                      b.page_count, b.year, b.tags, b.created_at\n               FROM books b\n               WHERE ($1::uuid IS NULL OR b.library_id = $1)\n                 AND ($2::text IS NULL OR b.format = $2)\n                 AND ($3::text IS NULL OR\n                      to_tsvector('simple', b.title || ' ' || array_to_string(b.authors, ' ') || ' ' || array_to_string(b.tags, ' '))\n                      @@ plainto_tsquery('simple', $3))\n                 AND ($7::text IS NULL OR $7 = ANY(b.tags))\n                 AND ($8::integer IS NULL OR b.year = $8)\n                 AND EXISTS (\n                   SELECT 1 FROM library_permissions lp\n                   WHERE lp.library_id = b.library_id\n                     AND lp.user_id = $6\n                     AND lp.can_read = true\n                 )\n               ORDER BY b.created_at DESC\n               LIMIT $4 OFFSET $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "library_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "authors",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 4,
+        "name": "format",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "cover_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "page_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "year",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f3685a003bcad06cbea789399db65af961234fdbc7d055ecd15245cf50f4794f"
+}

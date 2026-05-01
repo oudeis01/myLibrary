@@ -27,6 +27,28 @@ where
     }
 }
 
+pub async fn check_upload_permission(
+    pool: &PgPool,
+    user_id: Uuid,
+    library_id: Uuid,
+    is_admin: bool,
+) -> Result<(), AppError> {
+    if is_admin {
+        return Ok(());
+    }
+    let row = sqlx::query!(
+        "SELECT can_upload FROM library_permissions WHERE library_id = $1 AND user_id = $2",
+        library_id,
+        user_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+    match row {
+        Some(r) if r.can_upload => Ok(()),
+        _ => Err(AppError::Forbidden),
+    }
+}
+
 pub async fn check_library_access(
     pool: &PgPool,
     user_id: Uuid,

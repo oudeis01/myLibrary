@@ -8,6 +8,7 @@ frontend/build/
 
 # Environment secrets
 .env
+cookies.txt
 
 # Bruno CLI test output (contains actual tokens)
 **/bruno-tests/json

@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, book_id, user_id, kind, color, page, cfi_range,\n                  position as \"position: serde_json::Value\",\n                  text_content, note, created_at\n           FROM annotations\n           WHERE book_id = $1 AND user_id = $2\n           ORDER BY page ASC NULLS LAST, created_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "book_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "color",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "cfi_range",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "position: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "text_content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "07b1fad06282ca1a4bb29d48e179d3770ff946d26f429589e37b8e74e3eba6b5"
+}

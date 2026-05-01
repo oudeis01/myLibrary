@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT lp.user_id, u.username, lp.can_read, lp.can_upload\n           FROM library_permissions lp\n           JOIN users u ON u.id = lp.user_id\n           WHERE lp.library_id = $1\n           ORDER BY u.username",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "can_read",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "can_upload",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a4ccb31ad65e93186cb3d862eef5652a97533edd4fd8069d4de9fe1e77b27d83"
+}

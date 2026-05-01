@@ -37,6 +37,8 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("../migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
+    seed_admin(&pool).await?;
+
     let state = AppState {
         pool,
         jwt_secret: config.jwt_secret,
@@ -51,6 +53,35 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+async fn seed_admin(pool: &sqlx::PgPool) -> anyhow::Result<()> {
+    let (Ok(username), Ok(password)) = (
+        std::env::var("ADMIN_USERNAME"),
+        std::env::var("ADMIN_PASSWORD"),
+    ) else {
+        return Ok(());
+    };
+
+    let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM users")
+        .fetch_one(pool)
+        .await?
+        .unwrap_or(0);
+
+    if count == 0 {
+        let hash = api::users::hash_password(&password)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        sqlx::query!(
+            "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, 'admin')",
+            username,
+            hash,
+        )
+        .execute(pool)
+        .await?;
+        tracing::info!("created initial admin user: {}", username);
+    }
 
     Ok(())
 }

@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO books\n               (library_id, title, authors, format, file_path, file_size,\n                page_count, cover_path, description, year, language, metadata)\n               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "TextArray",
+        "Varchar",
+        "Text",
+        "Int8",
+        "Int4",
+        "Text",
+        "Text",
+        "Int4",
+        "Varchar",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c1d663802feeca29e2525612afeec2b5a13ca6e8926e954a48e933b129954a9"
+}

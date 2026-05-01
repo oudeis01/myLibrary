@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO reading_progress (user_id, book_id, page, cfi, percent, updated_at)\n           VALUES ($1, $2, $3, $4, $5, NOW())\n           ON CONFLICT (user_id, book_id) DO UPDATE SET\n             page = EXCLUDED.page,\n             cfi = EXCLUDED.cfi,\n             percent = EXCLUDED.percent,\n             updated_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e99f9ad0bd3cae481df0808fd5b66f45f1dd75c8bdaee80b3e1482bda3475bac"
+}

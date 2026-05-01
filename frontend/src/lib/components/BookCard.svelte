@@ -48,8 +48,15 @@
     {#if book.authors.length > 0}
       <p class="mt-1 line-clamp-1 text-xs text-gray-500">{book.authors.join(', ')}</p>
     {/if}
-    {#if book.year}
-      <p class="mt-auto pt-2 text-xs text-gray-400">{book.year}</p>
-    {/if}
+    <div class="mt-auto pt-2 flex flex-wrap items-end justify-between gap-1">
+      {#if book.year}
+        <span class="text-xs text-gray-400">{book.year}</span>
+      {/if}
+      {#if book.tags?.length > 0}
+        <span class="rounded-full bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-600 line-clamp-1">
+          {book.tags[0]}{book.tags.length > 1 ? ` +${book.tags.length - 1}` : ''}
+        </span>
+      {/if}
+    </div>
   </div>
 </a>

@@ -41,7 +41,7 @@ struct UpdateUserRequest {
     password: Option<String>,
 }
 
-fn hash_password(password: &str) -> Result<String, AppError> {
+pub fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
