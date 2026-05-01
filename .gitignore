@@ -1,19 +1,19 @@
 # Rust
-ebook-server/backend/target/
+backend/target/
 
 # Frontend build
-ebook-server/frontend/node_modules/
-ebook-server/frontend/.svelte-kit/
-ebook-server/frontend/build/
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
 
 # Environment secrets
-ebook-server/.env
+.env
 
 # Bruno CLI test output (contains actual tokens)
 **/bruno-tests/json
 
 # User content
-ebook-server/data/
+data/
 
 # OS
 .DS_Store

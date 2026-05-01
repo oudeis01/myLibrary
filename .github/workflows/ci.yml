@@ -50,15 +50,14 @@ jobs:
         run: cargo install sqlx-cli --no-default-features --features rustls,postgres
 
       - name: Run migrations
-        working-directory: ebook-server
         run: sqlx migrate run
 
       - name: Build
-        working-directory: ebook-server/backend
+        working-directory: backend
         run: cargo build --release
 
       - name: Test
-        working-directory: ebook-server/backend
+        working-directory: backend
         run: cargo test
 
   frontend:
@@ -81,13 +80,13 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        working-directory: ebook-server/frontend
+        working-directory: frontend
         run: bun install
 
       - name: Type check
-        working-directory: ebook-server/frontend
+        working-directory: frontend
         run: bun run check
 
       - name: Build
-        working-directory: ebook-server/frontend
+        working-directory: frontend
         run: bun run build
