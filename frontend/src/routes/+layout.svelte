@@ -2,6 +2,7 @@
   import '../app.css';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { browser } from '$app/environment';
   import { accessToken, isAuthenticated, currentUser } from '$lib/stores/auth';
   import { isOffline, initOfflineStore } from '$lib/stores/offline';
   import { refresh, logout } from '$lib/api/auth';
@@ -33,7 +34,7 @@
     }
   });
 
-  $: if (!$isAuthenticated && !PUBLIC_ROUTES.includes($page.url.pathname)) {
+  $: if (browser && !$isAuthenticated && !PUBLIC_ROUTES.includes($page.url.pathname)) {
     goto('/login');
   }
 
