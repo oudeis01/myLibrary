@@ -10,6 +10,11 @@
   const PUBLIC_ROUTES = ['/login'];
 
   onMount(async () => {
+    // Service Worker 등록 (vite-plugin-pwa injectManifest 전략은 직접 등록 필요)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+    }
+
     if (!$isAuthenticated && !PUBLIC_ROUTES.includes($page.url.pathname)) {
       goto('/login');
       return;
