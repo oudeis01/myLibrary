@@ -1,64 +1,61 @@
-# 개발 환경 DB 연결 테스트 가이드
+# Development Environment DB Connection Test Guide
 
-로컬에서 백엔드를 직접 실행하고 API가 DB와 제대로 연결되는지 확인하는 절차입니다.  
-**최초 셋업부터 책 스캔까지** 한 번만 쭉 읽으면 됩니다.
+Step-by-step procedure to run the backend locally and verify that the API connects to the database correctly.
+Follow this once from start to finish for initial setup.
 
 ---
 
-## 사전 요구사항
+## Prerequisites
 
-아래가 설치되어 있어야 합니다.
+Ensure the following tools are installed.
 
-| 도구 | 확인 명령 |
+| Tool | Verify command |
 |---|---|
 | Docker & Docker Compose | `docker compose version` |
 | Rust (stable) | `cargo --version` |
-| psql (PostgreSQL 클라이언트) | `psql --version` |
+| psql (PostgreSQL client) | `psql --version` |
 | Python 3 + argon2-cffi | `python3 -c "import argon2"` |
 
-`argon2-cffi`가 없다면:
+If `argon2-cffi` is missing:
 ```bash
 pip install argon2-cffi
 ```
 
 ---
 
-## 1단계: 개발 DB 시작
+## Step 1: Start the development database
 
-`ebook-server/` 디렉토리에서 실행합니다.
+Run from the project root directory.
 
 ```bash
-cd /경로/ebook-server
-
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-컨테이너가 뜰 때까지 잠깐 기다린 후, 정상 기동 확인:
+Wait for the container to start, then verify it is healthy:
 
 ```bash
 docker compose -f docker-compose.dev.yml ps
 ```
 
-`postgres` 컨테이너 Status가 `healthy`여야 합니다.
+The `postgres` container Status should be `healthy`.
 
 ---
 
-## 2단계: `.env` 파일 설정
+## Step 2: Configure `.env`
 
-`.env.example`을 복사해서 `.env`를 만듭니다 (이미 있으면 생략).
+Copy `.env.example` to create `.env` (skip if it already exists).
 
 ```bash
 cp .env.example .env
 ```
 
-`.env`를 열어서 `JWT_SECRET`만 변경합니다.  
-`DATABASE_URL`은 개발용 기본값 그대로 써도 됩니다.
+Open `.env` and change `JWT_SECRET`. The `DATABASE_URL` can stay at the default development value.
 
 ```dotenv
-# JWT_SECRET: 최소 32자 랜덤 문자열
-# 아래 명령으로 생성할 수 있습니다:
+# JWT_SECRET: minimum 32-character random string
+# Generate one with:
 #   openssl rand -base64 32
-JWT_SECRET=여기에_32자_이상의_랜덤_문자열_입력
+JWT_SECRET=<your_32plus_char_random_string>
 
 DATABASE_URL=postgres://ebook:devpassword@localhost:5432/ebook
 BOOKS_PATH=./data/books
@@ -67,74 +64,72 @@ SERVER_PORT=3001
 RUST_LOG=debug
 ```
 
-> `.env`는 `.gitignore`에 등록되어 있어 커밋되지 않습니다.
+> `.env` is listed in `.gitignore` and will not be committed.
 
 ---
 
-## 3단계: 데이터 디렉토리 생성
+## Step 3: Create data directories
 
-책 파일과 썸네일을 저장할 디렉토리가 필요합니다.
+Directories for book files and thumbnails are required.
 
 ```bash
-# ebook-server/ 루트에서 실행
 mkdir -p data/books data/thumbs
 ```
 
-> **중요**: `.env`의 `BOOKS_PATH` / `THUMBS_PATH`는 **절대경로**로 설정하세요.
-> 상대경로(`./data/...`)를 쓰면 `cargo run`을 실행한 디렉토리(`backend/`)를 기준으로 해석되어
-> `ebook-server/data/thumbs/`가 아닌 `ebook-server/backend/data/thumbs/`에 파일이 생성됩니다.
+> **Important**: Set `BOOKS_PATH` and `THUMBS_PATH` in `.env` to **absolute paths**.
+> Relative paths resolve relative to the directory where `cargo run` executes (`backend/`),
+> which may cause files to be written to `backend/data/thumbs/` instead of the intended location.
 >
 > ```dotenv
-> BOOKS_PATH=/절대경로/ebook-server/data/books
-> THUMBS_PATH=/절대경로/ebook-server/data/thumbs
+> BOOKS_PATH=/absolute/path/data/books
+> THUMBS_PATH=/absolute/path/data/thumbs
 > ```
 
 ---
 
-## 4단계: 백엔드 서버 실행
+## Step 4: Start the backend server
 
 ```bash
 cd backend
 cargo run
 ```
 
-> 첫 실행은 의존성 컴파일로 몇 분 걸립니다. 이후부터는 빠릅니다.
+> The first run takes a few minutes to compile dependencies. Subsequent runs are faster.
 
-실행 성공 시 터미널에 아래와 유사한 로그가 출력됩니다:
+On success, the terminal shows output similar to:
 
 ```
 2024-xx-xx ... INFO ebook_server: running migrations
 2024-xx-xx ... INFO ebook_server: listening on 0.0.0.0:3001
 ```
 
-마이그레이션(테이블 생성)은 서버 시작 시 자동으로 실행됩니다.
+Database migrations (table creation) run automatically on startup.
 
 ---
 
-## 5단계: 헬스 체크
+## Step 5: Health check
 
-**새 터미널**을 열고 테스트합니다.
+Open a **new terminal** and test:
 
 ```bash
 curl -s http://localhost:3001/api/health | jq
 ```
 
-기대 응답:
+Expected response:
 
 ```json
 { "status": "ok" }
 ```
 
-`jq`가 없으면 `curl -s http://localhost:3001/api/health` 만 입력해도 됩니다.
+If `jq` is not installed, `curl -s http://localhost:3001/api/health` works as well.
 
 ---
 
-## 6단계: 관리자 계정 생성 (최초 1회)
+## Step 6: Create an admin account (first time only)
 
-로그인하려면 DB에 유저가 있어야 합니다.  
-가입 API는 없으므로 직접 삽입합니다.
+A user must exist in the database to log in. There is no signup API, so insert one directly.
 
-### 6-1. argon2 해시 생성
+### 6-1. Generate an argon2 hash
 
 ```bash
 python3 -c "
@@ -144,28 +139,27 @@ print(ph.hash('devpassword'))
 "
 ```
 
-출력 예시 (실행마다 달라집니다):
+Example output (varies each run):
 
 ```
 $argon2id$v=19$m=65536,t=3,p=4$abc123...==$xyz...==
 ```
 
-이 문자열 전체를 복사해 둡니다.
+Copy the entire string.
 
-### 6-2. DB에 유저 삽입
+### 6-2. Insert the user into the database
 
 ```bash
 psql postgres://ebook:devpassword@localhost:5432/ebook
 ```
 
-psql 프롬프트에서 아래 SQL을 실행합니다.  
-`HASH_HERE` 자리에 위에서 복사한 해시를 붙여넣습니다.
+At the psql prompt, run the following SQL. Replace `HASH_HERE` with the hash copied above.
 
 ```sql
 INSERT INTO users (username, password_hash, role)
 VALUES ('admin', 'HASH_HERE', 'admin');
 
--- 삽입 확인
+-- Verify the insertion
 SELECT id, username, role, created_at FROM users;
 
 \q
@@ -173,7 +167,7 @@ SELECT id, username, role, created_at FROM users;
 
 ---
 
-## 7단계: 로그인 API 테스트
+## Step 7: Test the login API
 
 ```bash
 curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
@@ -181,7 +175,7 @@ curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -d '{"username": "admin", "password": "devpassword"}' | jq
 ```
 
-기대 응답:
+Expected response:
 
 ```json
 {
@@ -189,10 +183,10 @@ curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
 }
 ```
 
-> `-c cookies.txt` 옵션으로 refresh_token 쿠키가 파일에 저장됩니다.  
-> 이후 명령에서 `-b cookies.txt`로 재사용합니다.
+> The `-c cookies.txt` option saves the refresh_token cookie to a file.
+> Use `-b cookies.txt` in subsequent commands to reuse it.
 
-토큰을 변수에 저장해 두면 편합니다:
+Storing the token in a variable is convenient:
 
 ```bash
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
@@ -205,72 +199,71 @@ echo $TOKEN
 
 ---
 
-## 8단계: 인증 필요 API 테스트
+## Step 8: Test authenticated API endpoints
 
-토큰 없이 접근하면 401이 반환되는지 확인:
+Verify that accessing without a token returns 401:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/libraries
-# → 401
+# -> 401
 ```
 
-토큰을 포함하면 정상 응답:
+With the token, the response should succeed:
 
 ```bash
 curl -s http://localhost:3001/api/libraries \
   -H "Authorization: Bearer $TOKEN" | jq
-# → [] (아직 라이브러리 없음)
+# -> [] (no libraries yet)
 ```
 
 ---
 
-## 9단계: 라이브러리 생성 + 스캔
+## Step 9: Create a library and scan
 
-### 9-1. 테스트용 책 파일 준비
+### 9-1. Prepare test book files
 
 ```bash
-# data/books/ 에 epub, pdf, cbz 파일을 복사합니다.
+# Copy epub, pdf, or cbz files into data/books/
 cp ~/Downloads/sample.epub data/books/
 ```
 
-### 9-2. 라이브러리 생성
+### 9-2. Create a library
 
-`path`에는 **서버 기준 절대경로 또는 상대경로**를 입력합니다.  
-`cargo run`을 `ebook-server/backend/`에서 실행했다면 `../data/books`가 됩니다.
+Set `path` to an absolute or relative path as seen from the server.
+If running `cargo run` from `backend/`, the relative path would be `../data/books`.
 
 ```bash
 curl -s -X POST http://localhost:3001/api/libraries \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "내 책장", "path": "../data/books"}' | jq
+  -d '{"name": "My Shelf", "path": "../data/books"}' | jq
 ```
 
-기대 응답:
+Expected response:
 
 ```json
 {
   "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "name": "내 책장",
+  "name": "My Shelf",
   "path": "../data/books",
   "created_at": "..."
 }
 ```
 
-`id`를 복사해 둡니다.
+Copy the `id`.
 
-### 9-3. 스캔 트리거
+### 9-3. Trigger a scan
 
 ```bash
-LIBRARY_ID="위에서 복사한 UUID"
+LIBRARY_ID="<UUID copied above>"
 
 curl -s -o /dev/null -w "%{http_code}" \
   -X POST http://localhost:3001/api/libraries/$LIBRARY_ID/scan \
   -H "Authorization: Bearer $TOKEN"
-# → 202
+# -> 202
 ```
 
-스캔은 백그라운드에서 실행됩니다.  
-서버 터미널에서 로그를 확인합니다:
+Scanning runs in the background. Check the server terminal for logs:
 
 ```
 INFO scan complete library_id=... added=3 skipped=0
@@ -278,112 +271,111 @@ INFO scan complete library_id=... added=3 skipped=0
 
 ---
 
-## 10단계: 책 목록 확인
+## Step 10: Verify book list
 
 ```bash
 curl -s http://localhost:3001/api/books \
   -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-스캔한 책들이 목록에 나타나면 전체 플로우 성공입니다.
+If scanned books appear in the list, the entire flow is working.
 
 ---
 
-## 자주 쓰는 명령 모음
+## Common commands
 
 ```bash
-# 토큰 재발급 (액세스 토큰은 15분 후 만료됨 — 만료됐으면 이걸 다시 실행)
+# Re-issue token (access token expires after 15 minutes)
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "devpassword"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# 토큰 갱신 (로그인 없이, refresh_token 쿠키 사용)
+# Refresh token (without re-login, uses refresh_token cookie)
 TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# DB 시작
+# Start database
 docker compose -f docker-compose.dev.yml up -d
 
-# DB 중지 (데이터 유지)
+# Stop database (preserves data)
 docker compose -f docker-compose.dev.yml stop
 
-# DB 완전 삭제 (볼륨 포함, 처음부터 다시 시작할 때)
+# Remove database completely (including volumes, start fresh)
 docker compose -f docker-compose.dev.yml down -v
 
-# psql 접속
+# Connect to psql
 psql postgres://ebook:devpassword@localhost:5432/ebook
 
-# 백엔드 실행 (코드 변경 시 자동 재시작)
+# Run backend with auto-restart on code changes
 cd backend && cargo watch -x run
 
-# 프론트엔드 dev 서버
+# Run frontend dev server
 cd frontend && bun run dev
 ```
 
 ---
 
-## 문제 해결
+## Troubleshooting
 
-### `DATABASE_URL must be set` 오류
+### `DATABASE_URL must be set` error
 
-`.env` 파일이 없거나 `ebook-server/backend/` 에서 실행하지 않은 경우입니다.
+The `.env` file is missing, or the command was not run from the `backend/` directory.
 
 ```bash
-# backend 디렉토리에서 실행해야 합니다
-cd ebook-server/backend
+cd backend
 cargo run
 ```
 
-### `connection refused` 오류
+### `connection refused` error
 
-DB 컨테이너가 아직 준비 안 된 경우입니다.
+The database container is not ready yet.
 
 ```bash
 docker compose -f docker-compose.dev.yml ps
-# Status가 healthy가 될 때까지 기다립니다
+# Wait until Status is healthy
 ```
 
-### API 호출 시 `401 Unauthorized` (토큰 만료)
+### `401 Unauthorized` on API calls (token expired)
 
-액세스 토큰 유효 기간은 **15분**입니다. 만료되면 재발급이 필요합니다.
+The access token lifetime is **15 minutes**. Re-issue when expired.
 
 ```bash
-# 방법 1: 다시 로그인
+# Option 1: Re-login
 TOKEN=$(curl -s -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "devpassword"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# 방법 2: refresh_token 쿠키로 갱신 (cookies.txt가 있을 때)
+# Option 2: Refresh using refresh_token cookie (requires cookies.txt)
 TOKEN=$(curl -s -b cookies.txt -X POST http://localhost:3001/api/auth/refresh \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 ```
 
-토큰이 정말 만료됐는지 확인하려면:
+To check if the token is actually expired:
 ```bash
-# JWT 페이로드 디코드 (exp 필드 확인)
+# Decode JWT payload (check the exp field)
 echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
-# date -d @<exp값>  으로 만료 시각 확인
+# date -d @<exp_value>  to see the expiration timestamp
 ```
 
-### 로그인 시 `401 Unauthorized`
+### `401 Unauthorized` on login
 
-- 유저가 DB에 없는 경우 → 6단계 다시 확인
-- 비밀번호가 다른 경우 → 6-1에서 생성한 해시와 로그인 비밀번호가 일치하는지 확인
+- No user in the database: revisit Step 6
+- Password mismatch: verify the hash generated in 6-1 matches the login password
 
 ```bash
 psql postgres://ebook:devpassword@localhost:5432/ebook \
   -c "SELECT username, role FROM users;"
 ```
 
-### 스캔 후 책이 안 보임
+### Books not appearing after scan
 
-- 서버 로그에서 `scan failed` 메시지 확인
-- `path`가 서버 실행 위치(`backend/`) 기준으로 올바른지 확인
-- 책 파일 형식이 epub/pdf/cbz인지 확인
+- Check server logs for `scan failed` messages
+- Verify the `path` is correct relative to the server execution directory (`backend/`)
+- Confirm book files are in epub, pdf, or cbz format
 
-### `cargo watch` 설치 안 됨
+### `cargo watch` not installed
 
 ```bash
 cargo install cargo-watch
