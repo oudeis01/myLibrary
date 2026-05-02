@@ -119,4 +119,109 @@ mod tests {
     fn fd_04_nonexistent_path() {
         assert_eq!(detect_format(Path::new("/nonexistent/file.pdf")), None);
     }
+
+    fn write_epub_zip() -> NamedTempFile {
+        use std::io::Cursor;
+        use zip::write::{FileOptions, ZipWriter};
+
+        let buf = Cursor::new(Vec::new());
+        let mut zw = ZipWriter::new(buf);
+        let opts = FileOptions::default();
+        zw.start_file("mimetype", opts).unwrap();
+        zw.write_all(b"application/epub+zip").unwrap();
+        zw.start_file("content.opf", opts).unwrap();
+        zw.write_all(b"<package/>").unwrap();
+        let buf = zw.finish().unwrap().into_inner();
+
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(&buf).unwrap();
+        f
+    }
+
+    fn write_cbz_zip() -> NamedTempFile {
+        use std::io::Cursor;
+        use zip::write::{FileOptions, ZipWriter};
+
+        let buf = Cursor::new(Vec::new());
+        let mut zw = ZipWriter::new(buf);
+        let opts = FileOptions::default();
+        zw.start_file("page001.jpg", opts).unwrap();
+        zw.write_all(&[0xFF, 0xD8, 0xFF, 0xE0]).unwrap(); // fake JPEG bytes
+        zw.start_file("page002.png", opts).unwrap();
+        zw.write_all(&[0x89, 0x50, 0x4E, 0x47]).unwrap(); // fake PNG bytes
+        let buf = zw.finish().unwrap().into_inner();
+
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(&buf).unwrap();
+        f
+    }
+
+    #[test]
+    fn fd_05_epub_mimetype() {
+        let f = write_epub_zip();
+        assert_eq!(detect_format(f.path()), Some(BookFormat::Epub));
+    }
+
+    #[test]
+    fn fd_06_cbz_all_images() {
+        let f = write_cbz_zip();
+        assert_eq!(detect_format(f.path()), Some(BookFormat::Cbz));
+    }
+
+    #[test]
+    fn fd_07_epub_opf_fallback() {
+        use std::io::Cursor;
+        use zip::write::{FileOptions, ZipWriter};
+
+        let buf = Cursor::new(Vec::new());
+        let mut zw = ZipWriter::new(buf);
+        let opts = FileOptions::default();
+        // No mimetype file, but has .opf
+        zw.start_file("OEBPS/content.opf", opts).unwrap();
+        zw.write_all(b"<package/>").unwrap();
+        let buf = zw.finish().unwrap().into_inner();
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(&buf).unwrap();
+
+        assert_eq!(detect_format(f.path()), Some(BookFormat::Epub));
+    }
+
+    #[test]
+    fn fd_08_three_bytes_too_short() {
+        let f = write_tmp(b"PK\x03");
+        assert_eq!(detect_format(f.path()), None);
+    }
+
+    #[test]
+    fn fd_09_pdf_bytes_regardless_of_name() {
+        // detect_format only checks magic bytes, ignores file extension
+        let mut f = NamedTempFile::with_suffix(".epub").unwrap();
+        f.write_all(b"%PDF-1.7 fake content").unwrap();
+        assert_eq!(detect_format(f.path()), Some(BookFormat::Pdf));
+    }
+
+    #[test]
+    fn fd_10_zip_with_mixed_non_image_content() {
+        use std::io::Cursor;
+        use zip::write::{FileOptions, ZipWriter};
+
+        let buf = Cursor::new(Vec::new());
+        let mut zw = ZipWriter::new(buf);
+        let opts = FileOptions::default();
+        zw.start_file("readme.txt", opts).unwrap();
+        zw.write_all(b"not an ebook").unwrap();
+        let buf = zw.finish().unwrap().into_inner();
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(&buf).unwrap();
+
+        // ZIP with unrecognized content → None
+        assert_eq!(detect_format(f.path()), None);
+    }
+
+    #[test]
+    fn fd_11_four_bytes_only_no_zip_magic() {
+        // PK magic is 0x50 0x4B 0x03 0x04; this has PK but wrong type bytes
+        let f = write_tmp(&[0x50, 0x4B, 0x01, 0x02, 0x00]);
+        assert_eq!(detect_format(f.path()), None);
+    }
 }

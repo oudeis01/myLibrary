@@ -1,5 +1,5 @@
 use crate::{
-    auth::guards::{check_library_access, check_upload_permission},
+    auth::guards::{check_library_access, check_upload_permission, AdminUser},
     auth::middleware::AuthUser,
     error::AppError,
     models::{Book, BookSummary},
@@ -22,7 +22,7 @@ use uuid::Uuid;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/books", get(list_books))
-        .route("/api/books/:id", get(get_book).patch(update_book))
+        .route("/api/books/:id", get(get_book).patch(update_book).delete(delete_book))
         .route("/api/books/:id/download", get(download_book))
         .route("/api/libraries/:id/upload", post(upload_book))
 }
@@ -68,8 +68,8 @@ async fn list_books(
                WHERE ($1::uuid IS NULL OR library_id = $1)
                  AND ($2::text IS NULL OR format = $2)
                  AND ($3::text IS NULL OR
-                      to_tsvector('simple', title || ' ' || array_to_string(authors, ' ') || ' ' || array_to_string(tags, ' '))
-                      @@ plainto_tsquery('simple', $3))
+                      book_search_vector(title, authors, tags)
+                      @@ plainto_tsquery('simple'::regconfig, $3))
                  AND ($6::text IS NULL OR $6 = ANY(tags))
                  AND ($7::integer IS NULL OR year = $7)
                ORDER BY created_at DESC
@@ -350,6 +350,31 @@ async fn upload_book(
     .await?;
 
     Ok((StatusCode::CREATED, Json(book)))
+}
+
+async fn delete_book(
+    AdminUser(_admin): AdminUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let row = sqlx::query!(
+        "SELECT file_path, cover_path FROM books WHERE id = $1",
+        id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let _ = fs::remove_file(&row.file_path);
+    if let Some(cover) = row.cover_path {
+        let _ = fs::remove_file(&cover);
+    }
+
+    sqlx::query!("DELETE FROM books WHERE id = $1", id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn download_book(

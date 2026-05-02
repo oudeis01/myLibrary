@@ -1,6 +1,6 @@
-# 자체 호스팅 전자책 서버 — 개발 블루프린트 v2
+# 자체 호스팅 전자책 서버 — 개발 블루프린트 v4
 
-> 작성 기준: 2025년 4월  
+> 작성 기준: 2026년 5월  
 > 스택: Rust (Axum) + SvelteKit (SPA/PWA) + PostgreSQL + nginx  
 > 목표: PDF · EPUB · CBZ 완전 지원, 오프라인 읽기, 멀티유저, 어노테이션, Docker 원샷 배포
 
@@ -12,6 +12,8 @@
 |---|---|
 | v1 | 초기 블루프린트 |
 | v2 | CBZ 어노테이션 제거(북마크만), ZIP 자동 감지 추가, CBR 제외, PostgreSQL 기본, Docker 원샷 구성, 테스트 스코프 축소·통합 |
+| v3 | Phase 0~3 완료 반영 |
+| v4 | Phase 4~6 반영. tantivy → PostgreSQL FTS (MVP/베타 임시 결정, 향후 전환 예정). `/api/search` 전용 엔드포인트 신설. 오프라인 annotation/bookmark pending_writes 큐 동기화 구현. DELETE /api/books/:id 추가. 테스트 23개 달성. series/series_index/original_extension 베타 이후 재고려. |
 
 ---
 
@@ -84,7 +86,7 @@
 | EPUB 파싱 | `epub` |
 | ZIP/CBZ 처리 | `zip` |
 | 이미지 처리 | `image` |
-| 풀텍스트 검색 | `tantivy` |
+| 풀텍스트 검색 | PostgreSQL FTS (현재 MVP). 향후 `tantivy` 전환 예정 — CJK 지원·fuzzy·페이지 단위 결과. API 인터페이스(`/api/search`) 유지로 전환 준비 완료. |
 | 인증 | `jsonwebtoken`, `argon2` |
 | 직렬화 | `serde`, `serde_json` |
 | 설정 | `config`, `dotenvy` |
@@ -151,10 +153,10 @@
 │  │   포맷 감지 → PDF / EPUB / CBZ 분류          │   │
 │  └─────────────────────────────────────────────┘   │
 │                                                     │
-│  ┌──────────────┐  ┌──────────────────────────┐    │
-│  │  tantivy     │  │  파일 스토리지            │    │
-│  │  검색 인덱스  │  │  (책 파일, 썸네일, 커버)  │    │
-│  └──────────────┘  └──────────────────────────┘    │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  파일 스토리지 (책 파일, 썸네일, 커버)        │   │
+│  │  검색: PostgreSQL FTS (→ tantivy 전환 예정)   │   │
+│  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
           │ 내부 네트워크
           ▼ :5432
@@ -1317,6 +1319,11 @@ docker compose up -d --build
 
 혼자 개발하는 프로젝트에서 테스트 커버리지 목표를 높게 잡는 것은 실익보다 오버헤드가 크다. 단, **런타임에서 발견하기 어렵거나, 보안과 직결되거나, 파일 포맷 다양성으로 인한 엣지케이스가 많은 영역**에는 테스트를 작성한다.
 
+**현재 구현 현황 (v4 기준):**
+- 포맷 감지 (`format_detector.rs`): FD-01~FD-11 **11개 구현** ✅
+- 권한 테스트 (`tests/permissions.rs`): P-01~P-12 **12개 구현** ✅ (`#[sqlx::test]` 사용, `axum-test` HTTP 테스트)
+- 합계: **23개** (JWT·파서 픽스처 테스트는 미착수)
+
 ```
 테스트 작성 (~20% 코드)          수동 확인 (~80% 코드)
 ─────────────────────────        ──────────────────────────
@@ -1564,21 +1571,23 @@ CI 구성: PR마다 `cargo test` 전체 실행. E2E, 성능, 보안 스캔은 ma
 - [x] EPUB 어노테이션 (CFI 기반, epub.js `rendition.annotations.highlight`)
 - [x] CBZ 북마크 패널 UI
 - [x] 어노테이션 내보내기 (JSON, Markdown)
-- [ ] 오프라인 어노테이션 · 북마크 동기화 — Phase 2 sync.ts는 진행도만 처리, 추후 보완
+- [x] 오프라인 어노테이션 · 북마크 동기화 — pending_writes IndexedDB 큐, 온라인 복귀 시 순서대로 재생
 
 ### Phase 4 — 멀티유저 (2주)
 
-- [ ] 유저 모델, 역할 시스템
-- [ ] 라이브러리별 권한 설정
-- [ ] 관리자 대시보드
-- [ ] Refresh Token 기반 인증 보완
+- [x] 유저 모델, 역할 시스템
+- [x] 라이브러리별 권한 설정
+- [x] 관리자 대시보드
+- [x] Refresh Token 기반 인증 보완
 
 ### Phase 5 — 검색 · 메타데이터 (1~2주)
 
-- [ ] tantivy 풀텍스트 검색 인덱싱
-- [ ] 메타데이터 편집 UI
-- [ ] 태그, 시리즈, 필터
-- [ ] 책 업로드 UI (드래그 앤 드롭)
+- [x] 풀텍스트 검색 — PostgreSQL FTS (`/api/search?q=&type=book|annotation`). **tantivy 전환 예정**: CJK 지원, fuzzy, 페이지 단위 결과. API 인터페이스 고정으로 전환 준비 완료.
+- [x] 메타데이터 편집 UI (PATCH /api/books/:id)
+- [x] 태그, 필터 (tag, year, format)
+- [x] 책 업로드 UI (드래그 앤 드롭, POST /api/libraries/:id/upload)
+- [x] 책 삭제 (DELETE /api/books/:id, admin 전용)
+- [ ] 시리즈, series_index, original_extension — 베타 테스트 이후 재고려
 
 ### Phase 6 — 다듬기 (지속)
 

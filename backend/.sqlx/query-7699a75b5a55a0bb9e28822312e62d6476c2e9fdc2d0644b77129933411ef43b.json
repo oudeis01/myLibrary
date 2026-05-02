@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT file_path, cover_path FROM books WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "cover_path",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "7699a75b5a55a0bb9e28822312e62d6476c2e9fdc2d0644b77129933411ef43b"
+}

@@ -11,6 +11,7 @@ pub mod libraries;
 pub mod members;
 pub mod progress;
 pub mod reader;
+pub mod search;
 pub mod users;
 
 pub fn router(state: AppState) -> Router {
@@ -25,6 +26,7 @@ pub fn router(state: AppState) -> Router {
         .merge(progress::router())
         .merge(annotations::router())
         .merge(bookmarks::router())
+        .merge(search::router())
         .with_state(state)
 }
 

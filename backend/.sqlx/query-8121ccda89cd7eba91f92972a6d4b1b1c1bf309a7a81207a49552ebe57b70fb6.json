@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, a.book_id, b.title AS book_title, a.page,\n                      a.text_content, a.note, a.created_at\n               FROM annotations a\n               JOIN books b ON b.id = a.book_id\n               WHERE to_tsvector('simple',\n                       coalesce(a.text_content,'') || ' ' || coalesce(a.note,''))\n                     @@ plainto_tsquery('simple', $1)\n               ORDER BY a.created_at DESC\n               LIMIT $2 OFFSET $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "book_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "book_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "text_content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "8121ccda89cd7eba91f92972a6d4b1b1c1bf309a7a81207a49552ebe57b70fb6"
+}

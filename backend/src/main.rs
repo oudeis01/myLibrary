@@ -6,6 +6,9 @@ mod error;
 mod models;
 mod services;
 
+#[cfg(test)]
+mod tests;
+
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 

@@ -42,13 +42,42 @@ export interface Library {
 export async function listBooks(params?: {
   library_id?: string;
   format?: string;
-  q?: string;
   tag?: string;
   year?: number;
   limit?: number;
   offset?: number;
 }): Promise<BookSummary[]> {
   return api.get('books', { searchParams: params as Record<string, string | number> }).json();
+}
+
+export interface AnnotationHit {
+  type: 'annotation';
+  id: string;
+  book_id: string;
+  book_title: string;
+  page: number | null;
+  text_content: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export type SearchResult = ({ type: 'book' } & BookSummary) | AnnotationHit;
+
+export async function searchBooks(params: {
+  q: string;
+  limit?: number;
+  offset?: number;
+}): Promise<BookSummary[]> {
+  return api.get('search', { searchParams: { ...params, type: 'book' } as Record<string, string | number> }).json();
+}
+
+export async function searchAll(params: {
+  q: string;
+  type: 'book' | 'annotation';
+  limit?: number;
+  offset?: number;
+}): Promise<SearchResult[]> {
+  return api.get('search', { searchParams: params as Record<string, string | number> }).json();
 }
 
 export async function uploadBook(

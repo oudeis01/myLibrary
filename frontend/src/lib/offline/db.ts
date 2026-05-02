@@ -9,15 +9,33 @@ export interface OfflineBook {
   downloadedAt: Date;
 }
 
+export interface PendingWrite {
+  id?: number;
+  method: 'POST' | 'PATCH' | 'DELETE';
+  endpoint: string;
+  body?: unknown;
+  createdAt: Date;
+}
+
 const DB_NAME = 'ebook-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export function openOfflineDB() {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      db.createObjectStore('books', { keyPath: 'id' });
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('books', { keyPath: 'id' });
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('pending_writes', { keyPath: 'id', autoIncrement: true });
+      }
     },
   });
+}
+
+export async function queuePendingWrite(write: Omit<PendingWrite, 'id' | 'createdAt'>): Promise<void> {
+  const db = await openOfflineDB();
+  await db.add('pending_writes', { ...write, createdAt: new Date() });
 }
 
 export async function getBookSource(bookId: string): Promise<{ url: string; isObjectUrl: boolean }> {

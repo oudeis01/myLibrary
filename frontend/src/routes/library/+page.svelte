@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listBooks, listLibraries, uploadBook } from '$lib/api/books';
+  import { listBooks, listLibraries, uploadBook, searchBooks } from '$lib/api/books';
   import { books, libraries, loading, searchQuery, formatFilter } from '$lib/stores/library';
   import BookCard from '$lib/components/BookCard.svelte';
   import type { BookSummary, Library } from '$lib/api/books';
@@ -59,12 +59,19 @@
   async function doSearch() {
     loading.set(true);
     try {
-      const params: Parameters<typeof listBooks>[0] = { limit: 200 };
-      if ($searchQuery) params.q = $searchQuery;
-      if ($formatFilter !== 'all') params.format = $formatFilter;
-      if (activeTag) params.tag = activeTag;
-      if (activeYear) params.year = activeYear;
-      const data = await listBooks(params);
+      let data: BookSummary[];
+      if ($searchQuery) {
+        data = await searchBooks({ q: $searchQuery, limit: 200 });
+        if ($formatFilter !== 'all') data = data.filter((b) => b.format === $formatFilter);
+        if (activeTag) data = data.filter((b) => (b.tags ?? []).includes(activeTag!));
+        if (activeYear) data = data.filter((b) => b.year === activeYear);
+      } else {
+        const params: Parameters<typeof listBooks>[0] = { limit: 200 };
+        if ($formatFilter !== 'all') params.format = $formatFilter;
+        if (activeTag) params.tag = activeTag;
+        if (activeYear) params.year = activeYear;
+        data = await listBooks(params);
+      }
       allBooks = data;
     } catch (e) {
       console.error(e);

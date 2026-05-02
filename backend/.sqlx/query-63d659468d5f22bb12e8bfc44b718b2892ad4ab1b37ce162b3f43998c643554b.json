@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, library_id, title, authors, format, cover_path, page_count, year, tags, created_at\n               FROM books\n               WHERE ($1::uuid IS NULL OR library_id = $1)\n                 AND ($2::text IS NULL OR format = $2)\n                 AND ($3::text IS NULL OR\n                      to_tsvector('simple', title || ' ' || array_to_string(authors, ' ') || ' ' || array_to_string(tags, ' '))\n                      @@ plainto_tsquery('simple', $3))\n                 AND ($6::text IS NULL OR $6 = ANY(tags))\n                 AND ($7::integer IS NULL OR year = $7)\n               ORDER BY created_at DESC\n               LIMIT $4 OFFSET $5",
+  "query": "SELECT b.id, b.library_id, b.title, b.authors, b.format, b.cover_path,\n                      b.page_count, b.year, b.tags, b.created_at\n               FROM books b\n               WHERE book_search_vector(b.title, b.authors, b.tags)\n                     @@ plainto_tsquery('simple'::regconfig, $1)\n                 AND EXISTS (\n                   SELECT 1 FROM library_permissions lp\n                   WHERE lp.library_id = b.library_id\n                     AND lp.user_id = $4\n                     AND lp.can_read = true\n                 )\n               ORDER BY b.created_at DESC\n               LIMIT $2 OFFSET $3",
   "describe": {
     "columns": [
       {
@@ -56,13 +56,10 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
         "Text",
         "Int8",
         "Int8",
-        "Text",
-        "Int4"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -78,5 +75,5 @@
       false
     ]
   },
-  "hash": "b193bcc9aa96fc68145ceb890f05a2a3ba3bd0bfac6eb5c8c453a384667a2c44"
+  "hash": "63d659468d5f22bb12e8bfc44b718b2892ad4ab1b37ce162b3f43998c643554b"
 }
