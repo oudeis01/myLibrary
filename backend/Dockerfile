@@ -1,4 +1,4 @@
-FROM rust:1.77-slim AS builder
+FROM rust:1-slim AS builder
 # WORKDIR = /workspace/backend so that ../migrations = /workspace/migrations
 # (matches sqlx::migrate!("../migrations") with CARGO_MANIFEST_DIR=/workspace/backend)
 WORKDIR /workspace/backend
