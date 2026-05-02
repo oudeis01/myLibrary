@@ -1,6 +1,6 @@
 # myLibrary
 
-> **Work in progress.** This project is under active development and not yet ready for use.
+> **Beta.** Core features are working end-to-end. Docker one-shot deploy is ready. See [Quick Start](#quick-start) below.
 
 Self-hosted ebook server with offline reading, multi-user support, and annotations.
 
@@ -13,7 +13,7 @@ Supports PDF, EPUB, and CBZ formats. Rendered entirely in the browser via format
 | Backend | Rust, Axum 0.7, SQLx, PostgreSQL 16 |
 | Frontend | SvelteKit (SPA/PWA), Tailwind CSS v4 |
 | Auth | JWT (Argon2 password hashing, access + refresh tokens) |
-| Search | Tantivy fulltext index |
+| Search | PostgreSQL FTS (tantivy planned for CJK/fuzzy) |
 | Reverse Proxy | nginx |
 | Deployment | Docker Compose |
 
@@ -28,7 +28,7 @@ Supports PDF, EPUB, and CBZ formats. Rendered entirely in the browser via format
 | EPUB parsing | `epub` |
 | ZIP/CBZ handling | `zip` |
 | Image processing | `image` (JPEG, PNG) |
-| Fulltext search | `tantivy` |
+| Fulltext search | PostgreSQL FTS (`to_tsvector` + GIN index) |
 | Auth | `jsonwebtoken`, `argon2` |
 
 ### Frontend Dependencies
@@ -42,6 +42,80 @@ Supports PDF, EPUB, and CBZ formats. Rendered entirely in the browser via format
 | HTTP client | `ky` |
 | PWA | `vite-plugin-pwa` |
 | Icons | `lucide-svelte` |
+
+## Quick Start
+
+The fastest way to try myLibrary is with Docker Compose. No build tools needed on the host.
+
+### Prerequisites
+
+- Docker 24+ and Docker Compose v2
+
+### Steps
+
+```bash
+git clone https://github.com/oudeis01/myLibrary.git
+cd myLibrary
+
+# 1. Create environment file
+cp .env.example .env
+```
+
+Open `.env` and set three values:
+
+```bash
+DB_PASSWORD=choose_a_strong_password       # PostgreSQL password
+JWT_SECRET=$(openssl rand -base64 32)      # Run this to generate
+ADMIN_PASSWORD=choose_an_admin_password    # First login password
+```
+
+```bash
+# 2. Start everything
+docker compose up -d
+
+# 3. Watch startup (backend applies DB migrations on first run)
+docker compose logs -f backend
+# Wait for: "listening on 0.0.0.0:3001"
+```
+
+Open **http://localhost** in your browser and log in with:
+
+- **Username**: `admin`
+- **Password**: the value you set for `ADMIN_PASSWORD`
+
+> The admin account is created automatically on first startup if the database is empty.
+
+### First steps after login
+
+1. **Create a library** — Admin menu → Libraries → New Library. Enter a name and a path *inside the container* (e.g. `/books/personal`). Books uploaded via the UI are stored there.
+
+2. **Upload a book** — Library page → **+ 업로드** button. Drop a PDF, EPUB, or CBZ file. Fill in optional metadata overrides (title, author, year).
+
+3. **Read a book** — Click any book card. The in-browser reader opens automatically based on format.
+
+4. **Annotate** — While reading a PDF or EPUB, select text to create a highlight or note. Open the side panel (✏️ 어노테이션 button) to review all annotations.
+
+5. **Invite users** — Admin menu → Users → Create User. Assign role (`member`). Go to Libraries → Permissions to grant library access.
+
+6. **Install as PWA** — In Chrome/Safari, use "Add to Home Screen" or "Install App". After installing, download books for offline reading via the ☁ button on each book card.
+
+### Stopping and data persistence
+
+```bash
+docker compose down        # stop containers, keep data
+docker compose down -v     # stop AND delete all data (books, DB, thumbnails)
+```
+
+Book files are stored in the `books_data` Docker volume. The database is in `pg_data`.
+
+### Known limitations (beta)
+
+- **Search**: Full-text search works but is English/simple-tokenizer only. CJK (Korean, Japanese, Chinese) search quality is limited. Tantivy engine planned.
+- **No HTTPS**: Runs on HTTP port 80. Put behind a reverse proxy (Caddy, Traefik) with TLS for remote access.
+- **No CBZ annotations**: CBZ supports bookmarks only, not text highlights.
+- **series / series_index fields**: Not yet implemented in the UI.
+
+---
 
 ## Architecture
 
@@ -192,9 +266,18 @@ bru run --env Local
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/api/books` | Bearer | List books (query: library_id, format, q, limit, offset) |
+| GET | `/api/books` | Bearer | List books (query: library_id, format, tag, year, limit, offset) |
 | GET | `/api/books/:id` | Bearer | Book detail with metadata |
+| PATCH | `/api/books/:id` | Bearer (admin or can_upload) | Update metadata (title, authors, year, tags, description) |
+| DELETE | `/api/books/:id` | Bearer (admin) | Delete book and its file |
 | GET | `/api/books/:id/download` | Bearer | Download book file |
+| POST | `/api/libraries/:id/upload` | Bearer (admin or can_upload) | Upload book file (multipart: file, title?, authors?, year?) |
+
+### Search
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/search` | Bearer | Full-text search. Query: `q` (required), `type=book\|annotation` (default: book), `limit`, `offset` |
 
 ### Reader
 
@@ -238,17 +321,17 @@ bru run --env Local
 
 ### Production Deployment
 
+See [Quick Start](#quick-start) above for the recommended setup. Short version:
+
 ```bash
 git clone https://github.com/oudeis01/myLibrary.git
 cd myLibrary
-
 cp .env.example .env
-# Edit .env: set JWT_SECRET (min 32 chars) and DB_PASSWORD
-
+# Edit .env: DB_PASSWORD, JWT_SECRET, ADMIN_PASSWORD
 docker compose up -d
 ```
 
-Access at `http://localhost`. nginx serves the frontend and proxies `/api/*` to the backend.
+Access at `http://localhost`. The admin account is created automatically on first startup. nginx proxies `/api/*` to the backend.
 
 ### Development Setup
 
@@ -258,21 +341,13 @@ docker compose -f docker-compose.dev.yml up -d
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env: set JWT_SECRET
+# Edit .env: set JWT_SECRET, and optionally ADMIN_USERNAME / ADMIN_PASSWORD
 
-# 3. Create an admin user (first time only)
-# Generate Argon2 hash:
-python3 -c "from argon2 import PasswordHasher; print(PasswordHasher().hash('your_password'))"
-# Insert into DB:
-psql postgres://ebook:devpassword@localhost:5432/ebook -c \
-  "INSERT INTO users (username, password_hash, role) VALUES ('admin', '<hash>', 'admin');"
-
-# 4. Start backend
+# 3. Start backend (migrations + admin user created automatically on first run)
 cd backend
-cargo run
-# Migrations run automatically on startup
+ADMIN_USERNAME=admin ADMIN_PASSWORD=yourpassword cargo run
 
-# 5. Start frontend (separate terminal)
+# 4. Start frontend (separate terminal)
 cd frontend
 bun install
 bun run dev
@@ -294,9 +369,9 @@ bun run dev
 
 ## Database
 
-PostgreSQL with 9 migration scripts:
+PostgreSQL with 10 migration scripts:
 
-| Migration | Tables |
+| Migration | Tables / Changes |
 |---|---|
 | 001 | users |
 | 002 | libraries |
@@ -307,6 +382,7 @@ PostgreSQL with 9 migration scripts:
 | 007 | bookmarks |
 | 008 | refresh_tokens |
 | 009 | indexes |
+| 010 | FTS helper function `book_search_vector()` + GIN indexes |
 
 Migrations run automatically when the backend starts.
 
@@ -314,15 +390,16 @@ Migrations run automatically when the backend starts.
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Project scaffolding | Done |
-| 1 | Core MVP (parsers, API, JWT auth, readers) | Done |
-| 2 | Offline reading + PWA | Done |
-| 3 | Annotations and bookmarks | Done |
-| 4 | Multi-user + access control | Done |
-| 5 | Tantivy fulltext search | Done |
-| 6 | Polish (performance, mobile UX, documentation) | Pending |
+| 0 | Project scaffolding | ✅ Done |
+| 1 | Core MVP (parsers, API, JWT auth, readers) | ✅ Done |
+| 2 | Offline reading + PWA | ✅ Done |
+| 3 | Annotations and bookmarks | ✅ Done |
+| 4 | Multi-user + access control | ✅ Done |
+| 5 | Upload, metadata edit, tags, search, Docker | ✅ Done |
+| 6 | DELETE book, `/api/search`, offline annotation sync, tests | ✅ Done |
+| — | Polish: mobile UX, thumbnail optimization, tantivy | Pending |
 
-88 tests (53 unit + 35 integration) across all implemented phases.
+23 automated tests: 11 format-detection unit tests + 12 HTTP permission integration tests.
 
 ## License
 
